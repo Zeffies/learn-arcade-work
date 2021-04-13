@@ -323,8 +323,13 @@ class MyGame(arcade.Window):
         for damage in damage_list:
             damage.reset_pos()
             self.score -= 10
+            if self.charge > 0:
+                self.charge -= 5
+                if self.charge <= 0:
+                    self.charge = 0
+                    self.unshrink()
             if self.health > 0:
-                self.health -= 1
+                self.health -= 2
             if self.health <= 0:
                 self.alive = False
                 self.healing = False
