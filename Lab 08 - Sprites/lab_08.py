@@ -9,7 +9,8 @@ SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
 
 # --- Other Variables ---
-sprite_scaling_player = 0.5
+sprite_scaling_player = 0.15
+sprite_scaling_player_shrunk = .07
 enemy_count = 50
 red_coin_count = 1
 
@@ -129,8 +130,8 @@ class MyGame(arcade.Window):
         self.score = 0
 
         # Set up the player
-        # Character image from kenney.nl
-        self.player_sprite = arcade.Sprite("character.png", sprite_scaling_player)
+        # Ship image from Shoot'em Ups Pack HD by Jose Medina (Medimon). Purchased from itch.io
+        self.player_sprite = arcade.Sprite("P-green-b3.png", sprite_scaling_player)
         self.player_sprite.center_x = 50
         self.player_sprite.center_y = 50
         self.player_list.append(self.player_sprite)
@@ -159,7 +160,7 @@ class MyGame(arcade.Window):
             enemy = Enemy("laserBlue01.png", SPRITE_SCALING_ENEMY)
 
             # Position the enemy
-            enemy.center_x = random.randrange(SCREEN_WIDTH - 300, SCREEN_WIDTH + 500)
+            enemy.center_x = random.randrange(SCREEN_WIDTH + 50, SCREEN_WIDTH + 500)
             enemy.center_y = random.randrange(SCREEN_HEIGHT)
             enemy.angle = 180
 
@@ -184,13 +185,13 @@ class MyGame(arcade.Window):
             self.unshrink()
 
     def shrink(self):
-        self.player_sprite.scale = .2
+        self.player_sprite.scale = sprite_scaling_player_shrunk
         arcade.schedule(self.shrink_charge, .25)
         self.shrunk = True
 
     def unshrink(self):
         self.shrunk = False
-        self.player_sprite.scale = .5
+        self.player_sprite.scale = sprite_scaling_player
         arcade.unschedule(self.shrink_charge)
 
     # noinspection PyUnusedLocal
