@@ -11,6 +11,8 @@ SCREEN_HEIGHT = 600
 # --- Other Variables ---
 sprite_scaling_player = 0.15
 sprite_scaling_player_shrunk = .07
+sprite_scaling_player_bullet = .8
+sprite_scaling_player_bullet_shrunk = .4
 enemy_count = 50
 red_coin_count = 1
 
@@ -61,10 +63,21 @@ class Enemy(arcade.Sprite):
         # Move the enemy
         self.center_x -= 1
 
-        # See if the coin has fallen off the bottom of the screen.
+        # See if the enemy has made it to the left of the screen.
         # If so, reset it.
         if self.right < 0:
             self.reset_pos()
+            self.scale += 1
+
+
+class PlayerBullet(arcade.Sprite):
+    """
+    This class is used to move the player's bullets upwards.
+    """
+
+    def update(self):
+        # Move the bullet
+        self.center_y += 3
 
 
 class MyGame(arcade.Window):
@@ -80,6 +93,7 @@ class MyGame(arcade.Window):
         self.coin_list = None
         self.enemy_list = None
         self.red_coin_list = None
+        self.player_bullet_list = None
 
         # Set up the player info
         self.player_sprite = None
@@ -90,7 +104,12 @@ class MyGame(arcade.Window):
         self.alive = True
         self.healing = False
         self.difficulty_check = 0
+        self.lmb_down = False
         self.rmb_down = False
+        self.last_shot = 'r'
+        self.firing_big = False
+        self.firing_small = False
+        self.can_fire = True
 
         # Don't show the mouse cursor
         self.set_mouse_visible(False)
@@ -125,6 +144,7 @@ class MyGame(arcade.Window):
         self.coin_list = arcade.SpriteList()
         self.enemy_list = arcade.SpriteList()
         self.red_coin_list = arcade.SpriteList()
+        self.player_bullet_list = arcade.SpriteList()
 
         # Score
         self.score = 0
@@ -140,6 +160,12 @@ class MyGame(arcade.Window):
         self.health = 10
         self.alive = True
         self.healing = False
+        self.last_shot = 'r'
+        self.firing_big = False
+        self.firing_small = False
+        self.lmb_down = False
+        self.rmb_down = False
+        self.can_fire = True
 
         # Create the coins
         for i in range(COIN_COUNT):
@@ -188,11 +214,21 @@ class MyGame(arcade.Window):
         self.player_sprite.scale = sprite_scaling_player_shrunk
         arcade.schedule(self.shrink_charge, .25)
         self.shrunk = True
+        if self.firing_big and self.lmb_down:
+            arcade.unschedule(self.fire_big)
+            self.firing_small = True
+            self.firing_big = False
+            arcade.schedule(self.fire_small, .3)
 
     def unshrink(self):
         self.shrunk = False
         self.player_sprite.scale = sprite_scaling_player
         arcade.unschedule(self.shrink_charge)
+        if self.firing_small and self.lmb_down:
+            arcade.unschedule(self.fire_small)
+            arcade.schedule(self.fire_big, .3)
+            self.firing_big = True
+            self.firing_small = False
 
     # noinspection PyUnusedLocal
     def heal(self, delta_time):
@@ -202,12 +238,54 @@ class MyGame(arcade.Window):
             arcade.unschedule(self.heal)
             self.healing = False
 
+    # noinspection PyUnusedLocal
+    def fire_big(self, delta_time):
+        # Laser image from kenney.nl
+        player_bullet = PlayerBullet("laserGreen11.png", sprite_scaling_player_bullet)
+        if self.last_shot == 'r':
+            # position the right bullet
+            player_bullet.center_x = self.player_sprite.center_x - 27
+            self.last_shot = 'l'
+        else:
+            # position the left bullet
+            player_bullet.center_x = self.player_sprite.center_x + 27
+            self.last_shot = 'r'
+        player_bullet.center_y = self.player_sprite.center_y - 10
+        self.player_bullet_list.append(player_bullet)
+        if self.can_fire:
+            self.can_fire = False
+            arcade.schedule(self.fire_cooldown, .3)
+
+    # noinspection PyUnusedLocal
+    def fire_small(self, delta_time):
+        # Laser image from kenney.nl
+        player_bullet = PlayerBullet("laserGreen11.png", sprite_scaling_player_bullet_shrunk)
+        if self.last_shot == 'r':
+            # position the right bullet
+            player_bullet.center_x = self.player_sprite.center_x - 14
+            self.last_shot = 'l'
+        else:
+            # position the left bullet
+            player_bullet.center_x = self.player_sprite.center_x + 14
+            self.last_shot = 'r'
+        player_bullet.center_y = self.player_sprite.center_y - 5
+        self.player_bullet_list.append(player_bullet)
+        if self.can_fire:
+            self.can_fire = False
+            arcade.schedule(self.fire_cooldown, .3)
+
+    # noinspection PyUnusedLocal
+    def fire_cooldown(self, delta_time):
+        self.can_fire = True
+        arcade.unschedule(self.fire_cooldown)
+
     def on_draw(self):
         """ Draw everything """
         arcade.start_render()
         self.coin_list.draw()
-        self.player_list.draw()
         self.red_coin_list.draw()
+        self.player_bullet_list.draw()
+        self.player_list.draw()
         self.enemy_list.draw()
         arcade.draw_lrtb_rectangle_filled(self.player_sprite.center_x - 35, self.player_sprite.center_x + 35,
                                           self.player_sprite.center_y + 50, self.player_sprite.center_y + 47,
@@ -243,7 +321,21 @@ class MyGame(arcade.Window):
 
     def on_mouse_press(self, x: float, y: float, button: int, modifiers: int):
         if button == arcade.MOUSE_BUTTON_LEFT:
-            pass
+            self.lmb_down = True
+            if not self.shrunk:
+                self.firing_big = True
+                if self.can_fire:
+                    self.fire_big(0)
+                    self.can_fire = False
+                    arcade.schedule(self.fire_cooldown, .3)
+                arcade.schedule(self.fire_big, .3)
+            else:
+                self.firing_small = True
+                if self.can_fire:
+                    self.fire_small(0)
+                    self.can_fire = False
+                    arcade.schedule(self.fire_cooldown, .3)
+                arcade.schedule(self.fire_small, .3)
         if button == arcade.MOUSE_BUTTON_RIGHT:
             self.rmb_down = True
             if self.charge > 0:
@@ -251,6 +343,12 @@ class MyGame(arcade.Window):
 
     def on_mouse_release(self, x: float, y: float, button: int,
                          modifiers: int):
+        if button == arcade.MOUSE_BUTTON_LEFT:
+            self.lmb_down = False
+            if not self.shrunk:
+                arcade.unschedule(self.fire_big)
+            else:
+                arcade.unschedule(self.fire_small)
         if button == arcade.MOUSE_BUTTON_RIGHT:
             self.rmb_down = False
             if self.shrunk:
@@ -267,6 +365,7 @@ class MyGame(arcade.Window):
             self.enemy_list.update()
             self.player_list.update()
             self.red_coin_list.update()
+            self.player_bullet_list.update()
 
         # Generate a list of all sprites that collided with the player.
         hit_list = arcade.check_for_collision_with_list(self.player_sprite,
@@ -275,6 +374,20 @@ class MyGame(arcade.Window):
                                                            self.enemy_list)
         red_hit_list = arcade.check_for_collision_with_list(self.player_sprite,
                                                             self.red_coin_list)
+        for bullet in self.player_bullet_list:
+            kill_list = arcade.check_for_collision_with_list(bullet,
+                                                             self.enemy_list)
+            if len(kill_list) > 0:
+                bullet.remove_from_sprite_lists()
+            for kill in kill_list:
+                if bullet.scale == sprite_scaling_player_bullet_shrunk:
+                    kill.scale -= .25
+                else:
+                    kill.scale -= 1
+                if kill.scale <= .5:
+                    kill.reset_pos()
+                    kill.scale = SPRITE_SCALING_ENEMY
+                    self.score += 1
 
         # Loop through each colliding sprite, remove it, and add to the score.
         for coin in hit_list:
