@@ -89,6 +89,7 @@ class MyGame(arcade.Window):
         self.alive = True
         self.healing = False
         self.difficulty_check = 0
+        self.rmb_down = False
 
         # Don't show the mouse cursor
         self.set_mouse_visible(False)
@@ -182,6 +183,11 @@ class MyGame(arcade.Window):
         if self.charge == 0:
             self.unshrink()
 
+    def shrink(self):
+        self.player_sprite.scale = .2
+        arcade.schedule(self.shrink_charge, .25)
+        self.shrunk = True
+
     def unshrink(self):
         self.shrunk = False
         self.player_sprite.scale = .5
@@ -238,17 +244,16 @@ class MyGame(arcade.Window):
         if button == arcade.MOUSE_BUTTON_LEFT:
             pass
         if button == arcade.MOUSE_BUTTON_RIGHT:
+            self.rmb_down = True
             if self.charge > 0:
-                self.player_sprite.scale = .2
-                arcade.schedule(self.shrink_charge, .25)
-                self.shrunk = True
+                self.shrink()
 
     def on_mouse_release(self, x: float, y: float, button: int,
                          modifiers: int):
         if button == arcade.MOUSE_BUTTON_RIGHT:
+            self.rmb_down = False
             if self.shrunk:
-                self.player_sprite.scale = .5
-                arcade.unschedule(self.shrink_charge)
+                self.unshrink()
 
     def update(self, delta_time):
         global enemy_count
@@ -276,6 +281,8 @@ class MyGame(arcade.Window):
             self.score += 2
             if self.charge < 20:
                 self.charge += 1
+            if self.rmb_down and not self.shrunk:
+                self.shrink()
             self.difficulty_check += 2
             if self.difficulty_check > 5:
                 enemy_count += 1
@@ -301,6 +308,8 @@ class MyGame(arcade.Window):
                 self.charge += 5
                 if self.charge > 20:
                     self.charge = 20
+            if self.rmb_down and not self.shrunk:
+                self.shrink()
             self.difficulty_check += 5
             if self.difficulty_check > 5:
                 enemy_count += 1
