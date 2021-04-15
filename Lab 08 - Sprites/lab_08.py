@@ -110,9 +110,9 @@ class MyGame(arcade.Window):
 
         # Set up the player info
         self.player_sprite = None
-        self.charge = 0
+        self.charge = 20
         self.shrunk = False
-        self.health = 10
+        self.health = 20
         self.alive = True
         self.healing = False
         self.difficulty_check = 0
@@ -168,9 +168,9 @@ class MyGame(arcade.Window):
         self.player_sprite.center_x = 50
         self.player_sprite.center_y = 50
         self.player_list.append(self.player_sprite)
-        self.charge = 0
+        self.charge = 20
         self.shrunk = False
-        self.health = 10
+        self.health = 20
         self.alive = True
         self.healing = False
         self.last_shot = 'r'
@@ -224,7 +224,7 @@ class MyGame(arcade.Window):
         elif self.charge < 25:
             self.charge = 20
         else:
-            self.charge -= 5
+            self.charge -= 3
         if self.charge == 0:
             self.unshrink()
 
@@ -250,7 +250,7 @@ class MyGame(arcade.Window):
 
     # noinspection PyUnusedLocal
     def heal(self, delta_time):
-        if self.healing and self.health < 10:
+        if self.healing and self.health < 20:
             self.health += 1
         else:
             arcade.unschedule(self.heal)
@@ -259,7 +259,10 @@ class MyGame(arcade.Window):
     # noinspection PyUnusedLocal
     def fire_big(self, delta_time):
         # Laser image from kenney.nl
-        player_bullet = PlayerBullet("laserGreen11.png", sprite_scaling_player_bullet)
+        if self.charge < 40:
+            player_bullet = PlayerBullet("laserGreen11.png", sprite_scaling_player_bullet)
+        else:
+            player_bullet = PlayerBullet("laserYellow1.png", sprite_scaling_player_bullet)
         if self.last_shot == 'r':
             # position the right bullet
             player_bullet.center_x = self.player_sprite.center_x - 27
@@ -277,7 +280,10 @@ class MyGame(arcade.Window):
     # noinspection PyUnusedLocal
     def fire_small(self, delta_time):
         # Laser image from kenney.nl
-        player_bullet = PlayerBullet("laserGreen11.png", sprite_scaling_player_bullet_shrunk)
+        if self.charge < 40:
+            player_bullet = PlayerBullet("laserGreen11.png", sprite_scaling_player_bullet_shrunk)
+        else:
+            player_bullet = PlayerBullet("laserYellow1.png", sprite_scaling_player_bullet_shrunk)
         if self.last_shot == 'r':
             # position the right bullet
             player_bullet.center_x = self.player_sprite.center_x - 14
@@ -309,18 +315,28 @@ class MyGame(arcade.Window):
             arcade.draw_lrtb_rectangle_filled(self.player_sprite.center_x - 35, self.player_sprite.center_x + 35,
                                               self.player_sprite.center_y + 50, self.player_sprite.center_y + 47,
                                               arcade.color.BLACK)
-        if self.charge > 0:
+        if 20 > self.charge > 0:
             arcade.draw_lrtb_rectangle_filled(self.player_sprite.center_x - 35,
                                               self.player_sprite.center_x - 35 + (70 * (self.charge * 5 / 100)),
                                               self.player_sprite.center_y + 50, self.player_sprite.center_y + 47,
                                               arcade.color.GREEN)
+        elif 20 <= self.charge < 40:
+            arcade.draw_lrtb_rectangle_filled(self.player_sprite.center_x - 35,
+                                              self.player_sprite.center_x - 35 + (70 * (20 * 5 / 100)),
+                                              self.player_sprite.center_y + 50, self.player_sprite.center_y + 47,
+                                              arcade.color.GREEN)
+        if self.charge > 20:
+            arcade.draw_lrtb_rectangle_filled(self.player_sprite.center_x - 35,
+                                              self.player_sprite.center_x - 35 + (70 * ((self.charge-20) * 5 / 100)),
+                                              self.player_sprite.center_y + 50, self.player_sprite.center_y + 47,
+                                              arcade.color.GOLD)
 
         arcade.draw_lrtb_rectangle_filled(self.player_sprite.center_x - 35, self.player_sprite.center_x + 35,
                                           self.player_sprite.center_y + 55, self.player_sprite.center_y + 52,
                                           arcade.color.BLACK)
         if self.health > 0:
             arcade.draw_lrtb_rectangle_filled(self.player_sprite.center_x - 35, self.player_sprite.center_x - 35 +
-                                              (70 * (self.health * 10 / 100)), self.player_sprite.center_y + 55,
+                                              (70 * (self.health * 5 / 100)), self.player_sprite.center_y + 55,
                                               self.player_sprite.center_y + 52, arcade.color.RED)
 
         # Put the text on the screen.
@@ -347,8 +363,14 @@ class MyGame(arcade.Window):
                 if self.can_fire:
                     self.fire_big(0)
                     self.can_fire = False
-                    arcade.schedule(self.fire_cooldown, .3)
-                arcade.schedule(self.fire_big, .3)
+                    if self.charge < 40:
+                        arcade.schedule(self.fire_cooldown, .3)
+                    else:
+                        arcade.schedule(self.fire_cooldown, .2)
+                if self.charge < 40:
+                    arcade.schedule(self.fire_big, .3)
+                else:
+                    arcade.schedule(self.fire_big, .2)
             else:
                 self.firing_small = True
                 if self.can_fire:
@@ -397,22 +419,37 @@ class MyGame(arcade.Window):
         for bullet in self.player_bullet_list:
             kill_list = arcade.check_for_collision_with_list(bullet,
                                                              self.enemy_list)
-            if len(kill_list) > 0:
-                bullet.remove_from_sprite_lists()
+
             for kill in kill_list:
                 if bullet.scale == sprite_scaling_player_bullet_shrunk:
-                    kill.health -= 1
+                    if bullet.texture == "laserGreen11.png":
+                        kill.health -= 1
+                    else:
+                        kill.health -= 2
                     kill.scale = .5 + (kill.health * .25)
+                    if len(kill_list) > 0:
+                        bullet.remove_from_sprite_lists()
                 else:
-                    kill.health -= 2
+                    if len(kill_list) > 0:
+                        if kill.health > 1:
+                            bullet.remove_from_sprite_lists()
+                        else:
+                            bullet.scale = sprite_scaling_player_bullet_shrunk
+                    if bullet.texture == "laserGreen11.png":
+                        kill.health -= 2
+                    else:
+                        kill.health -= 3
                     kill.scale = .5 + (kill.health * .25)
                 if kill.health <= 0:
                     kill.reset_pos()
                     kill.health = 2
                     kill.scale = SPRITE_SCALING_ENEMY
                     score += 1
-                    if self.charge < 20:
+                    if self.charge < 40:
                         self.charge += 1
+                        if self.charge == 40 and self.firing_big:
+                            arcade.unschedule(self.fire_big)
+                            arcade.schedule(self.fire_big, .2)
 
         # Loop through each colliding sprite, remove it, and add to the score.
         for coin in hit_list:
@@ -471,18 +508,21 @@ class MyGame(arcade.Window):
         for damage in damage_list:
             damage.reset_pos()
             score -= 10
+            if self.firing_big and self.charge == 40:
+                arcade.unschedule(self.fire_big)
+                arcade.schedule(self.fire_big, .3)
             if self.charge > 0:
                 self.charge -= 5
                 if self.charge <= 0:
                     self.charge = 0
                     self.unshrink()
             if self.health > 0:
-                self.health -= 2
+                self.health -= damage.health
             if self.health <= 0:
                 self.alive = False
                 self.healing = False
-            if 0 < self.health < 10 and not self.healing:
-                arcade.schedule(self.heal, 3)
+            if 0 < self.health < 20 and not self.healing:
+                arcade.schedule(self.heal, 1.5)
                 self.healing = True
             if damage == damage_list[0]:
                 arcade.play_sound(self.hurt, volume=.02)
