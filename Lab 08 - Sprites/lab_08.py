@@ -53,20 +53,22 @@ class Enemy(arcade.Sprite):
     This class uses the basis of the coin sprite to make an enemy. Didn't use inheritance because I don't know how to
     only edit portions of a method rather than the full thing.
     """
-    def __init__(self, e_texture, e_scale, health=2):
+    def __init__(self, e_texture, e_scale, health=2, speedmax=4):
         super(Enemy, self).__init__(e_texture, e_scale)
         self.health = health
+        self.speed = random.randrange(1, speedmax)
 
     def reset_pos(self):
         # Reset the coin to a random spot above the screen
         self.center_y = random.randrange(SCREEN_HEIGHT)
         self.center_x = random.randrange(SCREEN_WIDTH + 20,
                                          SCREEN_WIDTH + 500)
+        self.speed = random.randrange(1, 4)
 
     def update(self):
         global score
         # Move the enemy
-        self.center_x -= 1
+        self.center_x -= self.speed
 
         # See if the enemy has made it to the left of the screen.
         # If so, reset it.
