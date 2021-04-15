@@ -13,8 +13,9 @@ sprite_scaling_player = 0.15
 sprite_scaling_player_shrunk = .07
 sprite_scaling_player_bullet = .8
 sprite_scaling_player_bullet_shrunk = .4
-enemy_count = 50
+enemy_count = 10
 red_coin_count = 1
+score = 0
 
 
 class Coin(arcade.Sprite):
@@ -52,6 +53,9 @@ class Enemy(arcade.Sprite):
     This class uses the basis of the coin sprite to make an enemy. Didn't use inheritance because I don't know how to
     only edit portions of a method rather than the full thing.
     """
+    def __init__(self, e_texture, e_scale, health=2):
+        super(Enemy, self).__init__(e_texture, e_scale)
+        self.health = health
 
     def reset_pos(self):
         # Reset the coin to a random spot above the screen
@@ -60,6 +64,7 @@ class Enemy(arcade.Sprite):
                                          SCREEN_WIDTH + 500)
 
     def update(self):
+        global score
         # Move the enemy
         self.center_x -= 1
 
@@ -67,7 +72,11 @@ class Enemy(arcade.Sprite):
         # If so, reset it.
         if self.right < 0:
             self.reset_pos()
-            self.scale += 1
+            self.health += 2
+            if self.health > 10:
+                self.health = 2
+                score += 10
+            self.scale = .5 + (self.health * .25)
 
 
 class PlayerBullet(arcade.Sprite):
@@ -84,6 +93,7 @@ class MyGame(arcade.Window):
     """ Our custom Window Class"""
 
     def __init__(self):
+        global score
         """ Initializer """
         # Call the parent class initializer
         super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, "Sprite Example")
@@ -97,7 +107,6 @@ class MyGame(arcade.Window):
 
         # Set up the player info
         self.player_sprite = None
-        self.score = 0
         self.charge = 0
         self.shrunk = False
         self.health = 10
@@ -137,6 +146,7 @@ class MyGame(arcade.Window):
                                 arcade.load_sound("impactMining_004.ogg")]
 
     def setup(self):
+        global score
         """ Set up the game and initialize the variables. """
 
         # Sprite lists
@@ -147,7 +157,7 @@ class MyGame(arcade.Window):
         self.player_bullet_list = arcade.SpriteList()
 
         # Score
-        self.score = 0
+        score = 0
 
         # Set up the player
         # Ship image from Shoot'em Ups Pack HD by Jose Medina (Medimon). Purchased from itch.io
@@ -218,7 +228,7 @@ class MyGame(arcade.Window):
             arcade.unschedule(self.fire_big)
             self.firing_small = True
             self.firing_big = False
-            arcade.schedule(self.fire_small, .3)
+            arcade.schedule(self.fire_small, .1)
 
     def unshrink(self):
         self.shrunk = False
@@ -304,7 +314,7 @@ class MyGame(arcade.Window):
                                               self.player_sprite.center_y + 52, arcade.color.RED)
 
         # Put the text on the screen.
-        output = f"Score: {self.score}"
+        output = f"Score: {score}"
         arcade.draw_text(output, 10, 20, arcade.color.WHITE, 14)
         arcade.draw_text("Enemy count: " + str(enemy_count), SCREEN_WIDTH - 200, 20, arcade.color.WHITE, 14)
         if not self.alive:
@@ -334,8 +344,8 @@ class MyGame(arcade.Window):
                 if self.can_fire:
                     self.fire_small(0)
                     self.can_fire = False
-                    arcade.schedule(self.fire_cooldown, .3)
-                arcade.schedule(self.fire_small, .3)
+                    arcade.schedule(self.fire_cooldown, .1)
+                arcade.schedule(self.fire_small, .1)
         if button == arcade.MOUSE_BUTTON_RIGHT:
             self.rmb_down = True
             if self.charge > 0:
@@ -355,7 +365,7 @@ class MyGame(arcade.Window):
                 self.unshrink()
 
     def update(self, delta_time):
-        global enemy_count
+        global enemy_count, score
         """ Movement and game logic """
 
         # Call update on all sprites (The sprites don't do much in this
@@ -381,18 +391,21 @@ class MyGame(arcade.Window):
                 bullet.remove_from_sprite_lists()
             for kill in kill_list:
                 if bullet.scale == sprite_scaling_player_bullet_shrunk:
-                    kill.scale -= .25
+                    kill.health -= 1
+                    kill.scale = .5 + (kill.health * .25)
                 else:
-                    kill.scale -= 1
-                if kill.scale <= .5:
+                    kill.health -= 2
+                    kill.scale = .5 + (kill.health * .25)
+                if kill.health <= 0:
                     kill.reset_pos()
+                    kill.health = 2
                     kill.scale = SPRITE_SCALING_ENEMY
-                    self.score += 1
+                    score += 1
 
         # Loop through each colliding sprite, remove it, and add to the score.
         for coin in hit_list:
             coin.reset_pos()
-            self.score += 2
+            score += 2
             if self.charge < 20:
                 self.charge += 1
             if self.rmb_down and not self.shrunk:
@@ -417,7 +430,7 @@ class MyGame(arcade.Window):
 
         for red_coin in red_hit_list:
             red_coin.reset_pos()
-            self.score += 5
+            score += 5
             if self.charge < 20:
                 self.charge += 5
                 if self.charge > 20:
@@ -445,7 +458,7 @@ class MyGame(arcade.Window):
 
         for damage in damage_list:
             damage.reset_pos()
-            self.score -= 10
+            score -= 10
             if self.charge > 0:
                 self.charge -= 5
                 if self.charge <= 0:
