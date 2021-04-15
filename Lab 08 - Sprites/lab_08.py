@@ -53,6 +53,7 @@ class Enemy(arcade.Sprite):
     This class uses the basis of the coin sprite to make an enemy. Didn't use inheritance because I don't know how to
     only edit portions of a method rather than the full thing.
     """
+
     def __init__(self, e_texture, e_scale, health=2, speedmax=4):
         super(Enemy, self).__init__(e_texture, e_scale)
         self.health = health
@@ -218,7 +219,12 @@ class MyGame(arcade.Window):
 
     # noinspection PyUnusedLocal
     def shrink_charge(self, delta_time):
-        self.charge -= 1
+        if self.charge <= 20:
+            self.charge -= 1
+        elif self.charge < 25:
+            self.charge = 20
+        else:
+            self.charge -= 5
         if self.charge == 0:
             self.unshrink()
 
@@ -299,14 +305,16 @@ class MyGame(arcade.Window):
         self.player_bullet_list.draw()
         self.player_list.draw()
         self.enemy_list.draw()
-        arcade.draw_lrtb_rectangle_filled(self.player_sprite.center_x - 35, self.player_sprite.center_x + 35,
-                                          self.player_sprite.center_y + 50, self.player_sprite.center_y + 47,
-                                          arcade.color.BLACK)
+        if self.charge < 20:
+            arcade.draw_lrtb_rectangle_filled(self.player_sprite.center_x - 35, self.player_sprite.center_x + 35,
+                                              self.player_sprite.center_y + 50, self.player_sprite.center_y + 47,
+                                              arcade.color.BLACK)
         if self.charge > 0:
             arcade.draw_lrtb_rectangle_filled(self.player_sprite.center_x - 35,
                                               self.player_sprite.center_x - 35 + (70 * (self.charge * 5 / 100)),
                                               self.player_sprite.center_y + 50, self.player_sprite.center_y + 47,
                                               arcade.color.GREEN)
+
         arcade.draw_lrtb_rectangle_filled(self.player_sprite.center_x - 35, self.player_sprite.center_x + 35,
                                           self.player_sprite.center_y + 55, self.player_sprite.center_y + 52,
                                           arcade.color.BLACK)
@@ -403,13 +411,15 @@ class MyGame(arcade.Window):
                     kill.health = 2
                     kill.scale = SPRITE_SCALING_ENEMY
                     score += 1
+                    if self.charge < 20:
+                        self.charge += 1
 
         # Loop through each colliding sprite, remove it, and add to the score.
         for coin in hit_list:
             coin.reset_pos()
             score += 2
-            if self.charge < 20:
-                self.charge += 1
+            # if self.charge < 20:
+            #     self.charge += 1
             if self.rmb_down and not self.shrunk:
                 self.shrink()
             self.difficulty_check += 2
@@ -433,10 +443,10 @@ class MyGame(arcade.Window):
         for red_coin in red_hit_list:
             red_coin.reset_pos()
             score += 5
-            if self.charge < 20:
-                self.charge += 5
-                if self.charge > 20:
-                    self.charge = 20
+            # if self.charge < 20:
+            #     self.charge += 5
+            #     if self.charge > 20:
+            #         self.charge = 20
             if self.rmb_down and not self.shrunk:
                 self.shrink()
             self.difficulty_check += 5
