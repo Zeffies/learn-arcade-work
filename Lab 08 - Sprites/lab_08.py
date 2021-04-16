@@ -129,6 +129,8 @@ class MyGame(arcade.Window):
         self.firing_big = False
         self.firing_small = False
         self.can_fire = True
+        self.can_regen = True
+        self.charge_cooling = False
 
         # Don't show the mouse cursor
         self.set_mouse_visible(False)
@@ -235,6 +237,10 @@ class MyGame(arcade.Window):
             self.charge -= 3
         if self.charge == 0:
             self.unshrink()
+            if self.charge_cooling:
+                arcade.unschedule(self.regen_cooldown)
+            arcade.schedule(self.regen_cooldown, 5)
+            self.charge_cooling = True
 
     # noinspection PyUnusedLocal
     def shrink_charge_up(self, delta_time):
@@ -243,6 +249,9 @@ class MyGame(arcade.Window):
         else:
             self.shrink_charging = False
             arcade.unschedule(self.shrink_charge_up)
+        if self.charge == 1 and self.rmb_down:
+            self.shrink()
+        print("charging up")
 
     def shrink(self):
         self.player_sprite.scale = sprite_scaling_player_shrunk
@@ -264,9 +273,6 @@ class MyGame(arcade.Window):
             arcade.schedule(self.fire_big, COOLDOWN_BIG)
             self.firing_big = True
             self.firing_small = False
-        if self.charge < 20:
-            self.shrink_charging = True
-            arcade.schedule(self.shrink_charge_up, SHRINK_CHARGE_UP_SPEED)
 
     # noinspection PyUnusedLocal
     def heal(self, delta_time):
@@ -322,6 +328,14 @@ class MyGame(arcade.Window):
     def fire_cooldown(self, delta_time):
         self.can_fire = True
         arcade.unschedule(self.fire_cooldown)
+
+    # noinspection PyUnusedLocal
+    def regen_cooldown(self, delta_time):
+        self.charge_cooling = False
+        if self.charge < 20:
+            self.shrink_charging = True
+            arcade.schedule(self.shrink_charge_up, SHRINK_CHARGE_UP_SPEED)
+        arcade.unschedule(self.regen_cooldown)
 
     def on_draw(self):
         """ Draw everything """
@@ -402,6 +416,7 @@ class MyGame(arcade.Window):
             self.rmb_down = True
             if self.charge > 0:
                 self.shrink()
+                self.can_regen = False
 
     def on_mouse_release(self, x: float, y: float, button: int,
                          modifiers: int):
@@ -415,6 +430,10 @@ class MyGame(arcade.Window):
             self.rmb_down = False
             if self.shrunk:
                 self.unshrink()
+                if self.charge_cooling:
+                    arcade.unschedule(self.regen_cooldown)
+                arcade.schedule(self.regen_cooldown, 5)
+                self.charge_cooling = True
 
     def update(self, delta_time):
         global enemy_count, score
@@ -475,10 +494,6 @@ class MyGame(arcade.Window):
         for coin in hit_list:
             coin.reset_pos()
             score += 2
-            # if self.charge < 20:
-            #     self.charge += 1
-            if self.rmb_down and not self.shrunk:
-                self.shrink()
             self.difficulty_check += 2
             if self.difficulty_check > 5:
                 enemy_count += 1
@@ -500,12 +515,6 @@ class MyGame(arcade.Window):
         for red_coin in red_hit_list:
             red_coin.reset_pos()
             score += 5
-            # if self.charge < 20:
-            #     self.charge += 5
-            #     if self.charge > 20:
-            #         self.charge = 20
-            if self.rmb_down and not self.shrunk:
-                self.shrink()
             self.difficulty_check += 5
             if self.difficulty_check > 5:
                 enemy_count += 1
@@ -536,8 +545,13 @@ class MyGame(arcade.Window):
                 if self.charge <= 0:
                     self.charge = 0
                     self.unshrink()
-            if self.charge < 20 and not self.shrink_charging:
+                    if self.charge_cooling:
+                        arcade.unschedule(self.regen_cooldown)
+                    arcade.schedule(self.regen_cooldown, 5)
+                    self.charge_cooling = True
+            if self.charge < 20 and not self.shrink_charging and self.can_regen:
                 self.shrink_charging = True
+                arcade.unschedule(self.shrink_charge_up)
                 arcade.schedule(self.shrink_charge_up, SHRINK_CHARGE_UP_SPEED)
             if self.health > 0:
                 self.health -= damage.health
