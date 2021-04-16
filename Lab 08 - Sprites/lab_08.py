@@ -7,6 +7,12 @@ SPRITE_SCALING_ENEMY = 1
 COIN_COUNT = 50
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
+SHRINK_CHARGE_UP_SPEED = 2
+SHRINK_CHARGE_DOWN_SPEED = .25
+HEALTH_CHARGE_SPEED = 1.5
+COOLDOWN_BIG = .3
+COOLDOWN_BIG_OVERCHARGE = .2
+COOLDOWN_SMALL = .1
 
 # --- Other Variables ---
 sprite_scaling_player = 0.15
@@ -111,6 +117,7 @@ class MyGame(arcade.Window):
         # Set up the player info
         self.player_sprite = None
         self.charge = 20
+        self.shrink_charging = False
         self.shrunk = False
         self.health = 20
         self.alive = True
@@ -170,6 +177,7 @@ class MyGame(arcade.Window):
         self.player_list.append(self.player_sprite)
         self.charge = 20
         self.shrunk = False
+        self.shrink_charging = False
         self.health = 20
         self.alive = True
         self.healing = False
@@ -218,7 +226,7 @@ class MyGame(arcade.Window):
             self.red_coin_list.append(red_coin)
 
     # noinspection PyUnusedLocal
-    def shrink_charge(self, delta_time):
+    def shrink_charge_down(self, delta_time):
         if self.charge <= 20:
             self.charge -= 1
         elif self.charge < 25:
@@ -228,25 +236,37 @@ class MyGame(arcade.Window):
         if self.charge == 0:
             self.unshrink()
 
+    # noinspection PyUnusedLocal
+    def shrink_charge_up(self, delta_time):
+        if self.charge < 20:
+            self.charge += 1
+        else:
+            self.shrink_charging = False
+            arcade.unschedule(self.shrink_charge_up)
+
     def shrink(self):
         self.player_sprite.scale = sprite_scaling_player_shrunk
-        arcade.schedule(self.shrink_charge, .25)
+        arcade.unschedule(self.shrink_charge_up)
+        arcade.schedule(self.shrink_charge_down, SHRINK_CHARGE_DOWN_SPEED)
         self.shrunk = True
         if self.firing_big and self.lmb_down:
             arcade.unschedule(self.fire_big)
             self.firing_small = True
             self.firing_big = False
-            arcade.schedule(self.fire_small, .1)
+            arcade.schedule(self.fire_small, COOLDOWN_SMALL)
 
     def unshrink(self):
         self.shrunk = False
         self.player_sprite.scale = sprite_scaling_player
-        arcade.unschedule(self.shrink_charge)
+        arcade.unschedule(self.shrink_charge_down)
         if self.firing_small and self.lmb_down:
             arcade.unschedule(self.fire_small)
-            arcade.schedule(self.fire_big, .3)
+            arcade.schedule(self.fire_big, COOLDOWN_BIG)
             self.firing_big = True
             self.firing_small = False
+        if self.charge < 20:
+            self.shrink_charging = True
+            arcade.schedule(self.shrink_charge_up, SHRINK_CHARGE_UP_SPEED)
 
     # noinspection PyUnusedLocal
     def heal(self, delta_time):
@@ -275,7 +295,7 @@ class MyGame(arcade.Window):
         self.player_bullet_list.append(player_bullet)
         if self.can_fire:
             self.can_fire = False
-            arcade.schedule(self.fire_cooldown, .3)
+            arcade.schedule(self.fire_cooldown, COOLDOWN_BIG)
 
     # noinspection PyUnusedLocal
     def fire_small(self, delta_time):
@@ -296,7 +316,7 @@ class MyGame(arcade.Window):
         self.player_bullet_list.append(player_bullet)
         if self.can_fire:
             self.can_fire = False
-            arcade.schedule(self.fire_cooldown, .3)
+            arcade.schedule(self.fire_cooldown, COOLDOWN_BIG)
 
     # noinspection PyUnusedLocal
     def fire_cooldown(self, delta_time):
@@ -364,20 +384,20 @@ class MyGame(arcade.Window):
                     self.fire_big(0)
                     self.can_fire = False
                     if self.charge < 40:
-                        arcade.schedule(self.fire_cooldown, .3)
+                        arcade.schedule(self.fire_cooldown, COOLDOWN_BIG)
                     else:
-                        arcade.schedule(self.fire_cooldown, .2)
+                        arcade.schedule(self.fire_cooldown, COOLDOWN_BIG_OVERCHARGE)
                 if self.charge < 40:
-                    arcade.schedule(self.fire_big, .3)
+                    arcade.schedule(self.fire_big, COOLDOWN_BIG)
                 else:
-                    arcade.schedule(self.fire_big, .2)
+                    arcade.schedule(self.fire_big, COOLDOWN_BIG_OVERCHARGE)
             else:
                 self.firing_small = True
                 if self.can_fire:
                     self.fire_small(0)
                     self.can_fire = False
-                    arcade.schedule(self.fire_cooldown, .1)
-                arcade.schedule(self.fire_small, .1)
+                    arcade.schedule(self.fire_cooldown, COOLDOWN_SMALL)
+                arcade.schedule(self.fire_small, COOLDOWN_SMALL)
         if button == arcade.MOUSE_BUTTON_RIGHT:
             self.rmb_down = True
             if self.charge > 0:
@@ -449,7 +469,7 @@ class MyGame(arcade.Window):
                         self.charge += 1
                         if self.charge == 40 and self.firing_big:
                             arcade.unschedule(self.fire_big)
-                            arcade.schedule(self.fire_big, .2)
+                            arcade.schedule(self.fire_big, COOLDOWN_BIG_OVERCHARGE)
 
         # Loop through each colliding sprite, remove it, and add to the score.
         for coin in hit_list:
@@ -510,19 +530,22 @@ class MyGame(arcade.Window):
             score -= 10
             if self.firing_big and self.charge == 40:
                 arcade.unschedule(self.fire_big)
-                arcade.schedule(self.fire_big, .3)
+                arcade.schedule(self.fire_big, COOLDOWN_BIG)
             if self.charge > 0:
                 self.charge -= 5
                 if self.charge <= 0:
                     self.charge = 0
                     self.unshrink()
+            if self.charge < 20 and not self.shrink_charging:
+                self.shrink_charging = True
+                arcade.schedule(self.shrink_charge_up, SHRINK_CHARGE_UP_SPEED)
             if self.health > 0:
                 self.health -= damage.health
             if self.health <= 0:
                 self.alive = False
                 self.healing = False
             if 0 < self.health < 20 and not self.healing:
-                arcade.schedule(self.heal, 1.5)
+                arcade.schedule(self.heal, HEALTH_CHARGE_SPEED)
                 self.healing = True
             if damage == damage_list[0]:
                 arcade.play_sound(self.hurt, volume=.02)
