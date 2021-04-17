@@ -251,7 +251,6 @@ class MyGame(arcade.Window):
             arcade.unschedule(self.shrink_charge_up)
         if self.charge == 1 and self.rmb_down:
             self.shrink()
-        print("charging up")
 
     def shrink(self):
         self.player_sprite.scale = sprite_scaling_player_shrunk
@@ -549,10 +548,10 @@ class MyGame(arcade.Window):
                         arcade.unschedule(self.regen_cooldown)
                     arcade.schedule(self.regen_cooldown, 5)
                     self.charge_cooling = True
-            if self.charge < 20 and not self.shrink_charging and self.can_regen:
-                self.shrink_charging = True
+            if self.charge < 20:
+                self.charge_cooling = True
                 arcade.unschedule(self.shrink_charge_up)
-                arcade.schedule(self.shrink_charge_up, SHRINK_CHARGE_UP_SPEED)
+                arcade.schedule(self.regen_cooldown, SHRINK_CHARGE_UP_SPEED)
             if self.health > 0:
                 self.health -= damage.health
             if self.health <= 0:
