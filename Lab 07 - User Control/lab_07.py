@@ -122,10 +122,24 @@ class MyGame(arcade.Window):
         other way. This makes changing direction annoying, as this often happens accidentally"""
         if key == arcade.key.UP or key == arcade.key.DOWN:
             self.ball.y_inputs -= 1
+            # If a key is still being pressed, make sure movement is going that way.
+            if self.ball.y_inputs == 1:
+                if key == arcade.key.UP:
+                    self.ball.change_y = -MOVEMENT_SPEED
+                else:
+                    self.ball.change_y = MOVEMENT_SPEED
+            # If no keys are being pressed, stop.
             if self.ball.y_inputs == 0:
                 self.ball.change_y = 0
         if key == arcade.key.LEFT or key == arcade.key.RIGHT:
             self.ball.x_inputs -= 1
+            # If a key is still being pressed, make sure movement is going that way.
+            if self.ball.x_inputs == 1:
+                if key == arcade.key.RIGHT:
+                    self.ball.change_x = -MOVEMENT_SPEED
+                else:
+                    self.ball.change_x = MOVEMENT_SPEED
+            # If no keys are being pressed, stop.
             if self.ball.x_inputs == 0:
                 self.ball.change_x = 0
 
