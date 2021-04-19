@@ -135,6 +135,10 @@ class MyGame(arcade.Window):
         # Don't show the mouse cursor
         self.set_mouse_visible(False)
 
+        # Get monitor list for fullscreen
+        self.monitors = arcade.get_screens()
+        self.view_coords = arcade.get_viewport()
+
         arcade.set_background_color(arcade.color.AMAZON)
 
         # Load sounds
@@ -433,6 +437,14 @@ class MyGame(arcade.Window):
                     arcade.unschedule(self.regen_cooldown)
                 arcade.schedule(self.regen_cooldown, 5)
                 self.charge_cooling = True
+
+    def on_key_press(self, symbol: int, modifiers: int):
+        if symbol == arcade.key.F:
+            if self.fullscreen:
+                self.set_fullscreen(False)
+            else:
+                self.set_fullscreen(screen=self.monitors[1])
+                self.set_viewport(self.view_coords[0], self.view_coords[1], self.view_coords[2], self.view_coords[3])
 
     def update(self, delta_time):
         global enemy_count, score
