@@ -4,7 +4,6 @@ import arcade
 # --- Constants ---
 SPRITE_SCALING_COIN = 0.2
 SPRITE_SCALING_ENEMY = 1
-COIN_COUNT = 20
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
 SHRINK_CHARGE_UP_SPEED = 2
@@ -20,8 +19,8 @@ sprite_scaling_player_shrunk = .07
 sprite_scaling_player_bullet = .8
 sprite_scaling_player_bullet_shrunk = .4
 enemy_count = 10
-red_coin_count = 1
 score = 0
+coin_count = 20
 
 
 class Coin(arcade.Sprite):
@@ -29,6 +28,7 @@ class Coin(arcade.Sprite):
     This class represents the coins on our screen. It is a child class of
     the arcade library's "Sprite" class.
     """
+
     def __init__(self, e_texture, e_scale, name, value):
         super(Coin, self).__init__(e_texture, e_scale)
         self.name = name
@@ -53,14 +53,6 @@ class Coin(arcade.Sprite):
                 self.remove_from_sprite_lists()
 
 
-class RedCoin(Coin):
-    def reset_pos(self):
-        # Reset the coin to a random spot above the screen
-        self.center_y = random.randrange(SCREEN_HEIGHT + 200,
-                                         SCREEN_HEIGHT + 1000)
-        self.center_x = random.randrange(SCREEN_WIDTH)
-
-
 class Enemy(arcade.Sprite):
     """
     This class uses the basis of the coin sprite to make an enemy. Didn't use inheritance because I don't know how to
@@ -82,7 +74,7 @@ class Enemy(arcade.Sprite):
         self.speed = random.randrange(1, 4)
 
     def update(self):
-        global score, enemy_count
+        global score, enemy_count, coin_count
         # Move the enemy
         self.center_x -= self.speed
 
@@ -93,12 +85,15 @@ class Enemy(arcade.Sprite):
                 self.reset_pos()
                 self.health += 2
                 if self.health > 10:
-                    self.health = 2
+                    if enemy_count > (coin_count*20):
+                        self.remove_from_sprite_lists()
+                        enemy_count -= 1
+                    else:
+                        self.health = 2
                     score += 10
                 self.scale = .5 + (self.health * .25)
             else:
                 self.remove_from_sprite_lists()
-                enemy_count -= 1
 
 
 class PlayerBullet(arcade.Sprite):
@@ -124,7 +119,6 @@ class MyGame(arcade.Window):
         self.player_list = None
         self.coin_list = None
         self.enemy_list = None
-        self.red_coin_list = None
         self.player_bullet_list = None
 
         # Set up the player info
@@ -171,11 +165,11 @@ class MyGame(arcade.Window):
                             arcade.load_sound("impactGlass_heavy_002.ogg"),
                             arcade.load_sound("impactGlass_heavy_003.ogg"),
                             arcade.load_sound("impactGlass_heavy_004.ogg")]
-        self.red_coin_sounds = [arcade.load_sound("impactMining_000.ogg"),
-                                arcade.load_sound("impactMining_001.ogg"),
-                                arcade.load_sound("impactMining_002.ogg"),
-                                arcade.load_sound("impactMining_003.ogg"),
-                                arcade.load_sound("impactMining_004.ogg")]
+        self.better_coin_sounds = [arcade.load_sound("impactMining_000.ogg"),
+                                   arcade.load_sound("impactMining_001.ogg"),
+                                   arcade.load_sound("impactMining_002.ogg"),
+                                   arcade.load_sound("impactMining_003.ogg"),
+                                   arcade.load_sound("impactMining_004.ogg")]
 
     def setup(self):
         global score
@@ -185,7 +179,6 @@ class MyGame(arcade.Window):
         self.player_list = arcade.SpriteList()
         self.coin_list = arcade.SpriteList()
         self.enemy_list = arcade.SpriteList()
-        self.red_coin_list = arcade.SpriteList()
         self.player_bullet_list = arcade.SpriteList()
 
         # Score
@@ -211,7 +204,7 @@ class MyGame(arcade.Window):
         self.can_fire = True
 
         # Create the coins
-        for i in range(COIN_COUNT):
+        for i in range(coin_count):
             # Create the coin instance
             # Coin image from kenney.nl
             coin = Coin("coinGold.png", SPRITE_SCALING_COIN, "gold", value=1)
@@ -235,17 +228,6 @@ class MyGame(arcade.Window):
 
             # Add the enemy to the list
             self.enemy_list.append(enemy)
-
-        # for i in range(red_coin_count):
-        #     # Modified coin image from kenny.nl
-        #     red_coin = RedCoin("coin_02.png", SPRITE_SCALING_COIN)
-        #
-        #     # Position the coin
-        #     red_coin.center_x = random.randrange(SCREEN_WIDTH)
-        #     red_coin.center_y = random.randrange(SCREEN_HEIGHT)
-        #
-        #     # Add the coin to the lists
-        #     self.red_coin_list.append(red_coin)
 
     # noinspection PyUnusedLocal
     def shrink_charge_down(self, delta_time):
@@ -357,9 +339,11 @@ class MyGame(arcade.Window):
         arcade.unschedule(self.regen_cooldown)
 
     def spawn_coin(self, coin_type, x, y):
+        global coin_count
         coin = Coin("coin" + coin_type.title() + ".png", SPRITE_SCALING_COIN, coin_type, 2)
         if coin_type == "gold":
             coin.value = 1
+            coin_count += 1
         elif coin_type == "blue":
             coin.value = 2
         elif coin_type == "red":
@@ -380,7 +364,6 @@ class MyGame(arcade.Window):
         """ Draw everything """
         arcade.start_render()
         self.coin_list.draw()
-        self.red_coin_list.draw()
         self.player_bullet_list.draw()
         self.player_list.draw()
         self.enemy_list.draw()
@@ -400,7 +383,7 @@ class MyGame(arcade.Window):
                                               arcade.color.GREEN)
         if self.charge > 20:
             arcade.draw_lrtb_rectangle_filled(self.player_sprite.center_x - 35,
-                                              self.player_sprite.center_x - 35 + (70 * ((self.charge-20) * 5 / 100)),
+                                              self.player_sprite.center_x - 35 + (70 * ((self.charge - 20) * 5 / 100)),
                                               self.player_sprite.center_y + 50, self.player_sprite.center_y + 47,
                                               arcade.color.GOLD)
 
@@ -492,7 +475,6 @@ class MyGame(arcade.Window):
             self.coin_list.update()
             self.enemy_list.update()
             self.player_list.update()
-            self.red_coin_list.update()
             self.player_bullet_list.update()
 
         # Generate a list of all sprites that collided with the player.
@@ -500,8 +482,6 @@ class MyGame(arcade.Window):
                                                         self.coin_list)
         damage_list = arcade.check_for_collision_with_list(self.player_sprite,
                                                            self.enemy_list)
-        red_hit_list = arcade.check_for_collision_with_list(self.player_sprite,
-                                                            self.red_coin_list)
         for bullet in self.player_bullet_list:
             kill_list = arcade.check_for_collision_with_list(bullet,
                                                              self.enemy_list)
@@ -532,7 +512,6 @@ class MyGame(arcade.Window):
                         kill.reset_pos()
                     else:
                         kill.remove_from_sprite_lists()
-                        enemy_count -= 1
                     kill.health = 2
                     kill.scale = SPRITE_SCALING_ENEMY
                     score += 1
@@ -551,13 +530,13 @@ class MyGame(arcade.Window):
             score += coin.value
             self.difficulty_check += 2
             if self.difficulty_check > 5:
-                enemy_count += 1
                 self.difficulty_check -= 5
                 if self.difficulty_check < 0:
                     self.difficulty_check = 0
-                self.random_enemy = random.randrange(186)
+                self.random_enemy = random.randrange(187)
                 if self.random_enemy <= 100:
                     enemy = Enemy("laserBlue01.png", SPRITE_SCALING_ENEMY, "blue")
+                    enemy_count += 1
                 elif 100 < self.random_enemy <= 150:
                     enemy = Enemy("laserRed01.png", SPRITE_SCALING_ENEMY, "red", health=4)
                 elif 150 < self.random_enemy <= 175:
@@ -579,42 +558,10 @@ class MyGame(arcade.Window):
                 self.enemy_list.append(enemy)
 
             if coin == hit_list[0]:
-                arcade.play_sound(self.coin_sounds[random.randrange(10)], volume=.02)
-
-        for red_coin in red_hit_list:
-            red_coin.reset_pos()
-            score += 5
-            self.difficulty_check += 5
-            if self.difficulty_check > 5:
-                enemy_count += 1
-                self.difficulty_check -= 5
-                if self.difficulty_check < 0:
-                    self.difficulty_check = 0
-                # Laser image from kenny.nl
-                self.random_enemy = random.randrange(1086)
-                if self.random_enemy <= 100:
-                    enemy = Enemy("laserBlue01.png", SPRITE_SCALING_ENEMY, "blue")
-                elif 100 < self.random_enemy <= 150:
-                    enemy = Enemy("laserRed01.png", SPRITE_SCALING_ENEMY, "red", health=4)
-                elif 150 < self.random_enemy <= 175:
-                    enemy = Enemy("laserPurple", SPRITE_SCALING_ENEMY, "purple", health=6)
-                elif 175 < self.random_enemy <= 185:
-                    enemy = Enemy("laserSilver", SPRITE_SCALING_ENEMY, "silver", health=8)
+                if coin.name == "gold":
+                    arcade.play_sound(self.coin_sounds[random.randrange(10)], volume=.02)
                 else:
-                    enemy = Enemy("laserGold", SPRITE_SCALING_ENEMY, "gold", health=10)
-
-                # Position the enemy
-                enemy.center_x = random.randrange(SCREEN_WIDTH + 100, SCREEN_WIDTH + 300)
-                enemy.center_y = random.randrange(SCREEN_HEIGHT)
-                if enemy.name == "blue":
-                    enemy.angle = 180
-                else:
-                    enemy.angle = 90
-
-                # Add the enemy to the list
-                self.enemy_list.append(enemy)
-            if red_coin == red_hit_list[0]:
-                arcade.play_sound(self.red_coin_sounds[random.randrange(5)], volume=.03)
+                    arcade.play_sound(self.better_coin_sounds[random.randrange(5)], volume=.03)
 
         for damage in damage_list:
             damage.reset_pos()
