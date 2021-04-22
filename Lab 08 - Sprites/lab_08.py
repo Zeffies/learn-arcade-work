@@ -85,7 +85,7 @@ class Enemy(arcade.Sprite):
                 self.reset_pos()
                 self.health += 2
                 if self.health > 10:
-                    if enemy_count > (coin_count*20):
+                    if enemy_count > (coin_count*2):
                         self.remove_from_sprite_lists()
                         enemy_count -= 1
                     else:
@@ -398,7 +398,8 @@ class MyGame(arcade.Window):
         # Put the text on the screen.
         output = f"Score: {score}"
         arcade.draw_text(output, 10, 20, arcade.color.WHITE, 14)
-        arcade.draw_text("Enemy count: " + str(enemy_count), SCREEN_WIDTH - 200, 20, arcade.color.WHITE, 14)
+        arcade.draw_text("Enemy count: " + str(enemy_count) + "/" + str(coin_count*2), SCREEN_WIDTH - 200, 20,
+                         arcade.color.WHITE, 14)
         if not self.alive:
             arcade.draw_text("You died!", (SCREEN_WIDTH * .5) + .9, SCREEN_HEIGHT * .5, arcade.color.BLACK, 25.5)
             arcade.draw_text("You died!", SCREEN_WIDTH * .5, SCREEN_HEIGHT * .5, arcade.color.RED, 25)
@@ -446,8 +447,10 @@ class MyGame(arcade.Window):
             self.lmb_down = False
             if not self.shrunk:
                 arcade.unschedule(self.fire_big)
+                self.firing_big = False
             else:
                 arcade.unschedule(self.fire_small)
+                self.firing_small = False
         if button == arcade.MOUSE_BUTTON_RIGHT:
             self.rmb_down = False
             if self.shrunk:
@@ -514,7 +517,16 @@ class MyGame(arcade.Window):
                         kill.remove_from_sprite_lists()
                     kill.health = 2
                     kill.scale = SPRITE_SCALING_ENEMY
-                    score += 1
+                    if kill.name == "blue":
+                        score += 1
+                    elif kill.name == "red":
+                        score += 2
+                    elif kill.name == "purple":
+                        score += 3
+                    elif kill.name == "silver":
+                        score += 4
+                    elif kill.name == "gold":
+                        score += 15
                     if self.charge < 40:
                         self.charge += 1
                         if self.charge == 40 and self.firing_big:
@@ -528,12 +540,12 @@ class MyGame(arcade.Window):
             else:
                 coin.remove_from_sprite_lists()
             score += coin.value
-            self.difficulty_check += 2
+            self.difficulty_check += coin.value
             if self.difficulty_check > 5:
                 self.difficulty_check -= 5
                 if self.difficulty_check < 0:
                     self.difficulty_check = 0
-                self.random_enemy = random.randrange(187)
+                self.random_enemy = random.randrange(190)
                 if self.random_enemy <= 100:
                     enemy = Enemy("laserBlue01.png", SPRITE_SCALING_ENEMY, "blue")
                     enemy_count += 1
