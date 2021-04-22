@@ -45,7 +45,7 @@ class Coin(arcade.Sprite):
         self.center_y -= 1
 
         # See if the coin has fallen off the bottom of the screen.
-        # If so, reset it.
+        # If golden, reset it; else, remove it.
         if self.top < 0:
             if self.name == "gold":
                 self.reset_pos()
@@ -67,7 +67,7 @@ class Enemy(arcade.Sprite):
         self.speed = random.randrange(1, speedmax)
 
     def reset_pos(self):
-        # Reset the coin to a random spot above the screen
+        # Reset the coin to a random spot to the right of the screen and give it a random speed.
         self.center_y = random.randrange(SCREEN_HEIGHT)
         self.center_x = random.randrange(SCREEN_WIDTH + 20,
                                          SCREEN_WIDTH + 500)
@@ -79,8 +79,9 @@ class Enemy(arcade.Sprite):
         self.center_x -= self.speed
 
         # See if the enemy has made it to the left of the screen.
-        # If so, reset it.
         if self.right < 0:
+            # If the enemy is blue, add 2 HP. If over the HP cap, check if above enemy cap. If so, remove it; else,
+            # reset it to minimum HP. Add 10 score regardless.
             if self.name == "blue":
                 self.reset_pos()
                 self.health += 2
@@ -145,7 +146,7 @@ class MyGame(arcade.Window):
         # Don't show the mouse cursor
         self.set_mouse_visible(False)
 
-        # Get monitor list for fullscreen
+        # Get monitor list and viewport for fullscreen
         self.monitors = arcade.get_screens()
         self.view_coords = arcade.get_viewport()
 
@@ -231,9 +232,11 @@ class MyGame(arcade.Window):
 
     # noinspection PyUnusedLocal
     def shrink_charge_down(self, delta_time):
+        # Handles how long the player can shrink.
         if self.charge <= 20:
             self.charge -= 1
-        elif self.charge < 25:
+        # Give the player a little extra leeway if in overcharge.
+        elif self.charge < 23:
             self.charge = 20
         else:
             self.charge -= 3
@@ -246,19 +249,27 @@ class MyGame(arcade.Window):
 
     # noinspection PyUnusedLocal
     def shrink_charge_up(self, delta_time):
+        # Handles charging the player's shrink meter. Must be off cool down to activate. Only goes up to 20,
+        # must kill enemies for overcharge.
         if self.charge < 20:
             self.charge += 1
         else:
             self.shrink_charging = False
             arcade.unschedule(self.shrink_charge_up)
+        # If holding the shrink button and gains a charge, shrinks.
         if self.charge == 1 and self.rmb_down:
             self.shrink()
 
     def shrink(self):
+        # Handles shrinking the player.
         self.player_sprite.scale = sprite_scaling_player_shrunk
+
+        # Stop charging the shrink meter and start removing charge.
         arcade.unschedule(self.shrink_charge_up)
         arcade.schedule(self.shrink_charge_down, SHRINK_CHARGE_DOWN_SPEED)
         self.shrunk = True
+
+        # If firing, switch to small bullets.
         if self.firing_big and self.lmb_down:
             arcade.unschedule(self.fire_big)
             self.firing_small = True
@@ -266,9 +277,12 @@ class MyGame(arcade.Window):
             arcade.schedule(self.fire_small, COOLDOWN_SMALL)
 
     def unshrink(self):
+        # Handles unshrinking.
         self.shrunk = False
         self.player_sprite.scale = sprite_scaling_player
         arcade.unschedule(self.shrink_charge_down)
+
+        # If firing, switch to big bullets.
         if self.firing_small and self.lmb_down:
             arcade.unschedule(self.fire_small)
             arcade.schedule(self.fire_big, COOLDOWN_BIG)
@@ -277,6 +291,7 @@ class MyGame(arcade.Window):
 
     # noinspection PyUnusedLocal
     def heal(self, delta_time):
+        # Handles healing.
         if self.healing and self.health < 20:
             self.health += 1
         else:
@@ -286,10 +301,13 @@ class MyGame(arcade.Window):
     # noinspection PyUnusedLocal
     def fire_big(self, delta_time):
         # Laser image from kenney.nl
+        # If below 40 charge, normal shots. If at 40, overcharged shots.
         if self.charge < 40:
             player_bullet = PlayerBullet("laserGreen11.png", sprite_scaling_player_bullet)
         else:
             player_bullet = PlayerBullet("laserYellow1.png", sprite_scaling_player_bullet)
+
+        # Alternate which blaster you shoot from.
         if self.last_shot == 'r':
             # position the right bullet
             player_bullet.center_x = self.player_sprite.center_x - 27
@@ -300,6 +318,8 @@ class MyGame(arcade.Window):
             self.last_shot = 'r'
         player_bullet.center_y = self.player_sprite.center_y - 10
         self.player_bullet_list.append(player_bullet)
+
+        # Make sure player can't spam shooting by clicking over and over.
         if self.can_fire:
             self.can_fire = False
             arcade.schedule(self.fire_cooldown, COOLDOWN_BIG)
@@ -307,10 +327,13 @@ class MyGame(arcade.Window):
     # noinspection PyUnusedLocal
     def fire_small(self, delta_time):
         # Laser image from kenney.nl
+        # If below 40 charge, normal shots. If at 40, overcharged shots.
         if self.charge < 40:
             player_bullet = PlayerBullet("laserGreen11.png", sprite_scaling_player_bullet_shrunk)
         else:
             player_bullet = PlayerBullet("laserYellow1.png", sprite_scaling_player_bullet_shrunk)
+
+        # Alternate which blaster you shoot from.
         if self.last_shot == 'r':
             # position the right bullet
             player_bullet.center_x = self.player_sprite.center_x - 14
@@ -321,17 +344,21 @@ class MyGame(arcade.Window):
             self.last_shot = 'r'
         player_bullet.center_y = self.player_sprite.center_y - 5
         self.player_bullet_list.append(player_bullet)
+
+        # Make sure player can't spam shooting by clicking over and over.
         if self.can_fire:
             self.can_fire = False
             arcade.schedule(self.fire_cooldown, COOLDOWN_BIG)
 
     # noinspection PyUnusedLocal
     def fire_cooldown(self, delta_time):
+        # Handles cooldown on shooting
         self.can_fire = True
         arcade.unschedule(self.fire_cooldown)
 
     # noinspection PyUnusedLocal
     def regen_cooldown(self, delta_time):
+        # Handles cooldown on shrinking charge-up
         self.charge_cooling = False
         if self.charge < 20:
             self.shrink_charging = True
@@ -339,10 +366,13 @@ class MyGame(arcade.Window):
         arcade.unschedule(self.regen_cooldown)
 
     def spawn_coin(self, coin_type, x, y):
+        # Handles spawning coins
         global coin_count
         coin = Coin("coin" + coin_type.title() + ".png", SPRITE_SCALING_COIN, coin_type, 2)
+        # Set the coins value based on colour.
         if coin_type == "gold":
             coin.value = 1
+            # Coin count is the persistent coin count, used for changing the minimum enemy count.
             coin_count += 1
         elif coin_type == "blue":
             coin.value = 2
@@ -367,30 +397,40 @@ class MyGame(arcade.Window):
         self.player_bullet_list.draw()
         self.player_list.draw()
         self.enemy_list.draw()
+
+        # Handle shrink charge bar
         if self.charge < 20:
+            # Shrink bar's black background. Goes away once in overcharge to save resources.
             arcade.draw_lrtb_rectangle_filled(self.player_sprite.center_x - 35, self.player_sprite.center_x + 35,
                                               self.player_sprite.center_y + 50, self.player_sprite.center_y + 47,
                                               arcade.color.BLACK)
         if 20 > self.charge > 0:
+            # Shrink charge bar. Non-overcharge.
             arcade.draw_lrtb_rectangle_filled(self.player_sprite.center_x - 35,
                                               self.player_sprite.center_x - 35 + (70 * (self.charge * 5 / 100)),
                                               self.player_sprite.center_y + 50, self.player_sprite.center_y + 47,
                                               arcade.color.GREEN)
         elif 20 <= self.charge < 40:
+            # If in overcharge, keep the green bar on screen until overcharge filled.
             arcade.draw_lrtb_rectangle_filled(self.player_sprite.center_x - 35,
                                               self.player_sprite.center_x - 35 + (70 * (20 * 5 / 100)),
                                               self.player_sprite.center_y + 50, self.player_sprite.center_y + 47,
                                               arcade.color.GREEN)
         if self.charge > 20:
+            # Shrink overcharge bar.
             arcade.draw_lrtb_rectangle_filled(self.player_sprite.center_x - 35,
                                               self.player_sprite.center_x - 35 + (70 * ((self.charge - 20) * 5 / 100)),
                                               self.player_sprite.center_y + 50, self.player_sprite.center_y + 47,
                                               arcade.color.GOLD)
 
-        arcade.draw_lrtb_rectangle_filled(self.player_sprite.center_x - 35, self.player_sprite.center_x + 35,
-                                          self.player_sprite.center_y + 55, self.player_sprite.center_y + 52,
-                                          arcade.color.BLACK)
+        # Handle health bar
+        if self.health < 20:
+            # Health bar's black background. Disappears when at full HP to save resources.
+            arcade.draw_lrtb_rectangle_filled(self.player_sprite.center_x - 35, self.player_sprite.center_x + 35,
+                                              self.player_sprite.center_y + 55, self.player_sprite.center_y + 52,
+                                              arcade.color.BLACK)
         if self.health > 0:
+            # Health bar.
             arcade.draw_lrtb_rectangle_filled(self.player_sprite.center_x - 35, self.player_sprite.center_x - 35 +
                                               (70 * (self.health * 5 / 100)), self.player_sprite.center_y + 55,
                                               self.player_sprite.center_y + 52, arcade.color.RED)
@@ -400,6 +440,8 @@ class MyGame(arcade.Window):
         arcade.draw_text(output, 10, 20, arcade.color.WHITE, 14)
         arcade.draw_text("Enemy count: " + str(enemy_count) + "/" + str(coin_count*2), SCREEN_WIDTH - 200, 20,
                          arcade.color.WHITE, 14)
+        # arcade.draw_text("Difficulty check: " + str(self.difficulty_check), SCREEN_WIDTH / 2, 20,
+        #                  arcade.color.WHITE, 14)
         if not self.alive:
             arcade.draw_text("You died!", (SCREEN_WIDTH * .5) + .9, SCREEN_HEIGHT * .5, arcade.color.BLACK, 25.5)
             arcade.draw_text("You died!", SCREEN_WIDTH * .5, SCREEN_HEIGHT * .5, arcade.color.RED, 25)
@@ -462,6 +504,7 @@ class MyGame(arcade.Window):
 
     def on_key_press(self, symbol: int, modifiers: int):
         if symbol == arcade.key.F:
+            # If in fullscreen and press f, exit fullscreen. Else, enter it.
             if self.fullscreen:
                 self.set_fullscreen(False)
             else:
@@ -529,6 +572,8 @@ class MyGame(arcade.Window):
                         score += 15
                     if self.charge < 40:
                         self.charge += 1
+                        if self.rmb_down and not self.shrunk:
+                            self.shrink()
                         if self.charge == 40 and self.firing_big:
                             arcade.unschedule(self.fire_big)
                             arcade.schedule(self.fire_big, COOLDOWN_BIG_OVERCHARGE)
