@@ -5,8 +5,10 @@ import arcade
 SPRITE_SCALING_COIN = 0.2
 SPRITE_SCALING_ENEMY = 1
 SPRITE_SCALING_BOMB = 1
-SCREEN_WIDTH = 800
-SCREEN_HEIGHT = 600
+# SCREEN_WIDTH = 800
+# SCREEN_HEIGHT = 600
+SCREEN_WIDTH = 1280
+SCREEN_HEIGHT = 720
 SHRINK_CHARGE_UP_SPEED = 2
 SHRINK_CHARGE_DOWN_SPEED = .25
 HEALTH_CHARGE_SPEED = 1.5
@@ -169,6 +171,8 @@ class PlayerBullet(arcade.Sprite):
     def update(self):
         # Move the bullet
         self.center_y += 3
+        if self.center_y > SCREEN_HEIGHT + 100:
+            self.remove_from_sprite_lists()
 
 
 class MyGame(arcade.Window):
@@ -249,6 +253,20 @@ class MyGame(arcade.Window):
                                    arcade.load_sound("impactMining_003.ogg"),
                                    arcade.load_sound("impactMining_004.ogg")]
         self.bomb_empty_sound = arcade.load_sound("chipsStack1.wav")
+
+        # flaunch.wav (c) by Michel Baradari apollo-music.de
+        self.bomb_launch_sound = arcade.load_sound("flaunch.wav")
+
+        # bomb burst sounds from https://opengameart.org/content/100-plus-game-sound-effects-wavoggm4a
+        self.bomb_burst_sounds = [arcade.load_sound("Explosion.wav"),
+                                  arcade.load_sound("Explosion2.wav"),
+                                  arcade.load_sound("Explosion4.wav"),
+                                  arcade.load_sound("Explosion5.wav"),
+                                  arcade.load_sound("Explosion7.wav"),
+                                  arcade.load_sound("Explosion9.wav"),
+                                  arcade.load_sound("Explosion12.wav"),
+                                  arcade.load_sound("Explosion20.wav")]
+        self.laser_shoot_sound = arcade.load_sound("Laser_Shoot7.wav")
 
         for x in range(3, 0, -1):
             self.explosion_texture_list.append(arcade.load_texture("pixelExplosion0" + str(x) + ".png"))
@@ -412,6 +430,7 @@ class MyGame(arcade.Window):
             self.last_shot = 'r'
         player_bullet.center_y = self.player_sprite.center_y - 10
         self.player_bullet_list.append(player_bullet)
+        arcade.play_sound(self.laser_shoot_sound, .005)
 
         # Make sure player can't spam shooting by clicking over and over.
         if self.can_fire:
@@ -438,6 +457,7 @@ class MyGame(arcade.Window):
             self.last_shot = 'r'
         player_bullet.center_y = self.player_sprite.center_y - 5
         self.player_bullet_list.append(player_bullet)
+        arcade.play_sound(self.laser_shoot_sound, .005)
 
         # Make sure player can't spam shooting by clicking over and over.
         if self.can_fire:
@@ -475,6 +495,7 @@ class MyGame(arcade.Window):
             explosion.center_y = random.randrange(0, SCREEN_HEIGHT)
             explosion.update()
             self.explosion_list.append(explosion)
+            arcade.play_sound(self.bomb_burst_sounds[random.randrange(8)], volume=.008)
         else:
             arcade.unschedule(self.spawn_explosion)
 
@@ -519,10 +540,10 @@ class MyGame(arcade.Window):
 
         # Handle shrink charge bar
         if self.charge < 20:
-            # Shrink bar's black background. Goes away once in overcharge to save resources.
+            # Shrink bar's empty background. Goes away once in overcharge to save resources.
             arcade.draw_lrtb_rectangle_filled(self.player_sprite.center_x - 35, self.player_sprite.center_x + 35,
                                               self.player_sprite.center_y + 50, self.player_sprite.center_y + 47,
-                                              arcade.color.BLACK)
+                                              arcade.color.ARSENIC)
         if 20 > self.charge > 0:
             # Shrink charge bar. Non-overcharge.
             arcade.draw_lrtb_rectangle_filled(self.player_sprite.center_x - 35,
@@ -544,10 +565,10 @@ class MyGame(arcade.Window):
 
         # Handle health bar
         if self.health < 20:
-            # Health bar's black background. Disappears when at full HP to save resources.
+            # Health bar's empty background. Disappears when at full HP to save resources.
             arcade.draw_lrtb_rectangle_filled(self.player_sprite.center_x - 35, self.player_sprite.center_x + 35,
                                               self.player_sprite.center_y + 55, self.player_sprite.center_y + 52,
-                                              arcade.color.BLACK)
+                                              arcade.color.ARSENIC)
         if self.health > 0:
             # Health bar.
             arcade.draw_lrtb_rectangle_filled(self.player_sprite.center_x - 35, self.player_sprite.center_x - 35 +
@@ -649,6 +670,7 @@ class MyGame(arcade.Window):
                 self.bomb_white.scale = .15
                 self.bomb_attack_list.append(self.bomb_white)
                 self.bomb_attack_list.append(self.bomb)
+                arcade.play_sound(self.bomb_launch_sound, .05)
                 self.bombs_to_spawn = random.randrange(15, 20)
                 arcade.schedule(self.spawn_explosion, .07)
                 for enemy in self.enemy_list:
@@ -658,7 +680,7 @@ class MyGame(arcade.Window):
                         if enemy.health <= 0:
                             self.spawn_coin(enemy.name, enemy.center_x, enemy.center_y)
                             if enemy.name == "blue":
-                                if random.randrange(0, 4) < 3 or enemy_count < coin_count:
+                                if random.randrange(0, 2) < 1 or enemy_count < coin_count:
                                     enemy.reset_pos()
                                 else:
                                     enemy.remove_from_sprite_lists()
