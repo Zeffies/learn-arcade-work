@@ -4,6 +4,7 @@ import arcade
 # --- Constants ---
 SPRITE_SCALING_COIN = 0.2
 SPRITE_SCALING_ENEMY = 1
+SPRITE_SCALING_BOMB = 1
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
 SHRINK_CHARGE_UP_SPEED = 2
@@ -21,6 +22,7 @@ sprite_scaling_player_bullet_shrunk = .4
 enemy_count = 10
 score = 0
 coin_count = 20
+enemies_to_spawn = 0
 
 
 class Coin(arcade.Sprite):
@@ -53,6 +55,47 @@ class Coin(arcade.Sprite):
                 self.remove_from_sprite_lists()
 
 
+class BombItem(arcade.Sprite):
+    """
+    This class handles drawing the bomb in the top left of the screen.
+    """
+
+    def __init__(self):
+        super(BombItem, self).__init__()
+
+        self.scale = SPRITE_SCALING_BOMB
+        self.bomb_textures = []
+        texture = arcade.load_texture("bombFaded.png")
+        self.bomb_textures.append(texture)
+        texture = arcade.load_texture("bomb.png")
+        self.bomb_textures.append(texture)
+
+        self.texture = self.bomb_textures[0]
+        self.center_x = 30
+        self.center_y = SCREEN_HEIGHT - 30
+
+
+class Explosion(arcade.Sprite):
+    """ This class creates an explosion animation """
+
+    def __init__(self, texture_list):
+        super().__init__()
+
+        # Start at the first frame
+        self.current_texture = 0
+        self.textures = texture_list
+
+    def update(self):
+
+        # Update to the next frame of the animation. If we are at the end
+        # of our frames, then delete this sprite.
+        self.current_texture += 1
+        if self.current_texture < len(self.textures):
+            self.set_texture(self.current_texture)
+        else:
+            self.remove_from_sprite_lists()
+
+
 class Enemy(arcade.Sprite):
     """
     This class uses the basis of the coin sprite to make an enemy. Didn't use inheritance because I don't know how to
@@ -65,6 +108,7 @@ class Enemy(arcade.Sprite):
         self.name = name
         self.scale = .5 + (self.health * .25)
         self.speed = random.randrange(1, speedmax)
+        self.bombed = False
 
     def reset_pos(self):
         # Reset the coin to a random spot to the right of the screen and give it a random speed.
@@ -72,9 +116,10 @@ class Enemy(arcade.Sprite):
         self.center_x = random.randrange(SCREEN_WIDTH + 20,
                                          SCREEN_WIDTH + 500)
         self.speed = random.randrange(1, 4)
+        self.bombed = False
 
     def update(self):
-        global score, enemy_count, coin_count
+        global score, enemy_count, coin_count, enemies_to_spawn
         # Move the enemy
         self.center_x -= self.speed
 
@@ -86,7 +131,7 @@ class Enemy(arcade.Sprite):
                 self.reset_pos()
                 self.health += 2
                 if self.health > 10:
-                    if enemy_count > (coin_count*2):
+                    if enemy_count > (coin_count * 2):
                         self.remove_from_sprite_lists()
                         enemy_count -= 1
                     else:
@@ -94,7 +139,26 @@ class Enemy(arcade.Sprite):
                     score += 10
                 self.scale = .5 + (self.health * .25)
             else:
+                if self.name == "gold":
+                    enemies_to_spawn = 5
                 self.remove_from_sprite_lists()
+
+
+class Player(arcade.Sprite):
+    """
+    This class is used to change the player character's sprite
+    """
+
+    def __init__(self):
+        super(Player, self).__init__()
+        self.scale = sprite_scaling_player
+        self.player_textures = []
+        texture = arcade.load_texture("P-green-b3.png")
+        self.player_textures.append(texture)
+        texture = arcade.load_texture("P-green-b3_hurt.png")
+        self.player_textures.append(texture)
+
+        self.texture = self.player_textures[0]
 
 
 class PlayerBullet(arcade.Sprite):
@@ -121,10 +185,16 @@ class MyGame(arcade.Window):
         self.coin_list = None
         self.enemy_list = None
         self.player_bullet_list = None
+        self.bomb_list = None
+        self.bomb_attack_list = None
+        self.explosion_list = None
+        self.explosion_texture_list = []
 
         # Set up the player info
         self.player_sprite = None
         self.charge = 20
+        self.bomb_charge = 0
+        self.bomb_charge_max = 250
         self.shrink_charging = False
         self.shrunk = False
         self.health = 20
@@ -139,9 +209,16 @@ class MyGame(arcade.Window):
         self.can_fire = True
         self.can_regen = True
         self.charge_cooling = False
+        self.bomb = None
+        self.bomb_white = None
+        self.bombing = False
+        self.bomb_color = [135, 206, 235, 255]
+        self.how_many = 0
 
         # misc
         self.random_enemy = 0
+        self.bombs_to_spawn = 0
+        self.background = None
 
         # Don't show the mouse cursor
         self.set_mouse_visible(False)
@@ -171,6 +248,12 @@ class MyGame(arcade.Window):
                                    arcade.load_sound("impactMining_002.ogg"),
                                    arcade.load_sound("impactMining_003.ogg"),
                                    arcade.load_sound("impactMining_004.ogg")]
+        self.bomb_empty_sound = arcade.load_sound("chipsStack1.wav")
+
+        for x in range(3, 0, -1):
+            self.explosion_texture_list.append(arcade.load_texture("pixelExplosion0" + str(x) + ".png"))
+        for x in range(9):
+            self.explosion_texture_list.append(arcade.load_texture("pixelExplosion0" + str(x) + ".png"))
 
     def setup(self):
         global score
@@ -181,17 +264,22 @@ class MyGame(arcade.Window):
         self.coin_list = arcade.SpriteList()
         self.enemy_list = arcade.SpriteList()
         self.player_bullet_list = arcade.SpriteList()
+        self.bomb_list = arcade.SpriteList()
+        self.bomb_attack_list = arcade.SpriteList()
+        self.explosion_list = arcade.SpriteList()
 
         # Score
         score = 0
 
         # Set up the player
         # Ship image from Shoot'em Ups Pack HD by Jose Medina (Medimon). Purchased from itch.io
-        self.player_sprite = arcade.Sprite("P-green-b3.png", sprite_scaling_player)
+        self.player_sprite = Player()
         self.player_sprite.center_x = 50
         self.player_sprite.center_y = 50
         self.player_list.append(self.player_sprite)
         self.charge = 20
+        self.bomb_charge = 0
+        self.bomb_charge_max = 250
         self.shrunk = False
         self.shrink_charging = False
         self.health = 20
@@ -203,6 +291,12 @@ class MyGame(arcade.Window):
         self.lmb_down = False
         self.rmb_down = False
         self.can_fire = True
+
+        self.background = arcade.load_texture("SpaceBackGround.jpg")
+
+        # Create the bomb sprite
+        bomb = BombItem()
+        self.bomb_list.append(bomb)
 
         # Create the coins
         for i in range(coin_count):
@@ -251,7 +345,7 @@ class MyGame(arcade.Window):
     def shrink_charge_up(self, delta_time):
         # Handles charging the player's shrink meter. Must be off cool down to activate. Only goes up to 20,
         # must kill enemies for overcharge.
-        if self.charge < 20:
+        if self.charge < 20 and self.alive:
             self.charge += 1
         else:
             self.shrink_charging = False
@@ -365,6 +459,25 @@ class MyGame(arcade.Window):
             arcade.schedule(self.shrink_charge_up, SHRINK_CHARGE_UP_SPEED)
         arcade.unschedule(self.regen_cooldown)
 
+    # noinspection PyUnusedLocal
+    def hurt_reset(self, delta_time):
+        # Handles changing the character sprite back to normal after hurt time ends
+        if self.alive:
+            self.player_list[0].texture = self.player_list[0].player_textures[0]
+        arcade.unschedule(self.hurt_reset)
+
+    # noinspection PyUnusedLocal
+    def spawn_explosion(self, delta_time):
+        self.bombs_to_spawn -= 1
+        if self.bombs_to_spawn > 0:
+            explosion = Explosion(self.explosion_texture_list)
+            explosion.center_x = random.randrange(0, SCREEN_WIDTH)
+            explosion.center_y = random.randrange(0, SCREEN_HEIGHT)
+            explosion.update()
+            self.explosion_list.append(explosion)
+        else:
+            arcade.unschedule(self.spawn_explosion)
+
     def spawn_coin(self, coin_type, x, y):
         # Handles spawning coins
         global coin_count
@@ -393,10 +506,16 @@ class MyGame(arcade.Window):
     def on_draw(self):
         """ Draw everything """
         arcade.start_render()
+        arcade.draw_lrwh_rectangle_textured(0, 0,
+                                            SCREEN_WIDTH, SCREEN_HEIGHT,
+                                            self.background)
         self.coin_list.draw()
         self.player_bullet_list.draw()
         self.player_list.draw()
         self.enemy_list.draw()
+        self.bomb_list.draw()
+        self.bomb_attack_list.draw()
+        self.explosion_list.draw()
 
         # Handle shrink charge bar
         if self.charge < 20:
@@ -435,10 +554,17 @@ class MyGame(arcade.Window):
                                               (70 * (self.health * 5 / 100)), self.player_sprite.center_y + 55,
                                               self.player_sprite.center_y + 52, arcade.color.RED)
 
+        # Handle bomb bar
+        if self.bomb_charge_max > self.bomb_charge > 0:
+            arcade.draw_arc_outline(30, SCREEN_HEIGHT - 34, 20, 20, arcade.color.WHITE, 0,
+                                    360 * (self.bomb_charge / self.bomb_charge_max), 3, 90)
+        elif self.bomb_charge_max == self.bomb_charge:
+            arcade.draw_arc_outline(30, SCREEN_HEIGHT - 34, 20, 20, arcade.color.GOLD, 0, 360, 3)
+
         # Put the text on the screen.
         output = f"Score: {score}"
         arcade.draw_text(output, 10, 20, arcade.color.WHITE, 14)
-        arcade.draw_text("Enemy count: " + str(enemy_count) + "/" + str(coin_count*2), SCREEN_WIDTH - 200, 20,
+        arcade.draw_text("Enemy count: " + str(enemy_count) + "/" + str(coin_count * 2), SCREEN_WIDTH - 200, 20,
                          arcade.color.WHITE, 14)
         # arcade.draw_text("Difficulty check: " + str(self.difficulty_check), SCREEN_WIDTH / 2, 20,
         #                  arcade.color.WHITE, 14)
@@ -482,9 +608,17 @@ class MyGame(arcade.Window):
             if self.charge > 0:
                 self.shrink()
                 self.can_regen = False
+        if button == arcade.MOUSE_BUTTON_MIDDLE:
+            if self.bomb_charge == self.bomb_charge_max:
+                # Show 'charging' sprite
+                pass
+            else:
+                # Play a sound indicating you can't use your bomb yet. Maybe make the bomb flash red.
+                pass
 
     def on_mouse_release(self, x: float, y: float, button: int,
                          modifiers: int):
+        global score, enemy_count, coin_count
         if button == arcade.MOUSE_BUTTON_LEFT:
             self.lmb_down = False
             if not self.shrunk:
@@ -501,6 +635,58 @@ class MyGame(arcade.Window):
                     arcade.unschedule(self.regen_cooldown)
                 arcade.schedule(self.regen_cooldown, 5)
                 self.charge_cooling = True
+        if button == arcade.MOUSE_BUTTON_MIDDLE:
+            if self.bomb_charge == self.bomb_charge_max:
+                self.bomb_charge = 0
+                for bomb in self.bomb_list:
+                    bomb.texture = bomb.bomb_textures[0]
+                self.bomb = arcade.Sprite("bombBlast.png", .1)
+                self.bomb_white = arcade.SpriteCircle(250, (255, 255, 255, 155))
+                self.bomb.center_x = self.player_sprite.center_x
+                self.bomb.center_y = self.player_sprite.center_y
+                self.bomb_white.center_x = self.player_sprite.center_x
+                self.bomb_white.center_y = self.player_sprite.center_y
+                self.bomb_white.scale = .15
+                self.bomb_attack_list.append(self.bomb_white)
+                self.bomb_attack_list.append(self.bomb)
+                self.bombs_to_spawn = random.randrange(15, 20)
+                arcade.schedule(self.spawn_explosion, .07)
+                for enemy in self.enemy_list:
+                    if SCREEN_WIDTH > enemy.center_x > 0 and SCREEN_HEIGHT > enemy.center_y > 0:
+                        enemy.health -= 5
+                        enemy.scale = .5 + (enemy.health * .25)
+                        if enemy.health <= 0:
+                            self.spawn_coin(enemy.name, enemy.center_x, enemy.center_y)
+                            if enemy.name == "blue":
+                                if random.randrange(0, 4) < 3 or enemy_count < coin_count:
+                                    enemy.reset_pos()
+                                else:
+                                    enemy.remove_from_sprite_lists()
+                                    enemy_count -= 1
+                            else:
+                                enemy.remove_from_sprite_lists()
+                            enemy.health = 2
+                            enemy.scale = SPRITE_SCALING_ENEMY
+                            if enemy.name == "blue":
+                                score += 1
+                            elif enemy.name == "red":
+                                score += 2
+                            elif enemy.name == "purple":
+                                score += 3
+                            elif enemy.name == "silver":
+                                score += 4
+                            elif enemy.name == "gold":
+                                score += 15
+                            if self.charge < 40:
+                                self.charge += 1
+                                if self.rmb_down and not self.shrunk:
+                                    self.shrink()
+                                if self.charge == 40 and self.firing_big:
+                                    arcade.unschedule(self.fire_big)
+                                    arcade.schedule(self.fire_big, COOLDOWN_BIG_OVERCHARGE)
+                self.bombing = True
+            else:
+                arcade.play_sound(self.bomb_empty_sound, .07)
 
     def on_key_press(self, symbol: int, modifiers: int):
         if symbol == arcade.key.F:
@@ -512,22 +698,23 @@ class MyGame(arcade.Window):
                 self.set_viewport(self.view_coords[0], self.view_coords[1], self.view_coords[2], self.view_coords[3])
 
     def update(self, delta_time):
-        global enemy_count, score
+        global enemy_count, score, enemies_to_spawn
         """ Movement and game logic """
 
-        # Call update on all sprites (The sprites don't do much in this
-        # example though.)
+        # Call update on all sprites
         if self.alive:
             self.coin_list.update()
             self.enemy_list.update()
             self.player_list.update()
             self.player_bullet_list.update()
+            self.explosion_list.update()
 
         # Generate a list of all sprites that collided with the player.
         hit_list = arcade.check_for_collision_with_list(self.player_sprite,
                                                         self.coin_list)
         damage_list = arcade.check_for_collision_with_list(self.player_sprite,
                                                            self.enemy_list)
+
         for bullet in self.player_bullet_list:
             kill_list = arcade.check_for_collision_with_list(bullet,
                                                              self.enemy_list)
@@ -586,6 +773,14 @@ class MyGame(arcade.Window):
                 coin.remove_from_sprite_lists()
             score += coin.value
             self.difficulty_check += coin.value
+            if self.bomb_charge < self.bomb_charge_max:
+                self.bomb_charge += coin.value
+                # print(self.bomb_charge)
+                # print(self.bomb_charge_max)
+                if self.bomb_charge >= self.bomb_charge_max:
+                    for bomb in self.bomb_list:
+                        bomb.texture = bomb.bomb_textures[1]
+                    self.bomb_charge = self.bomb_charge_max
             if self.difficulty_check > 5:
                 self.difficulty_check -= 5
                 if self.difficulty_check < 0:
@@ -649,6 +844,38 @@ class MyGame(arcade.Window):
                 self.healing = True
             if damage == damage_list[0]:
                 arcade.play_sound(self.hurt, volume=.02)
+                if self.player_list[0].texture == self.player_list[0].player_textures[1]:
+                    arcade.unschedule(self.hurt_reset)
+                else:
+                    self.player_list[0].texture = self.player_list[0].player_textures[1]
+                arcade.schedule(self.hurt_reset, .25)
+
+        if self.bombing:
+            self.bomb.scale += .05
+            self.bomb_white.scale += .057
+            if self.bomb.scale >= 2:
+                self.bomb_white.alpha -= 11
+            if self.bomb.scale >= 3:
+                self.bomb.remove_from_sprite_lists()
+                self.bomb_white.remove_from_sprite_lists()
+                self.bombing = False
+            self.bomb_attack_list.update()
+
+        if enemies_to_spawn > 0:
+            for x in range(enemies_to_spawn):
+                enemy = Enemy("laserBlue01.png", SPRITE_SCALING_ENEMY, "blue")
+                enemy_count += 1
+
+                # Position the enemy
+                enemy.center_x = random.randrange(SCREEN_WIDTH + 100, SCREEN_WIDTH + 300)
+                enemy.center_y = random.randrange(SCREEN_HEIGHT)
+
+                enemy.angle = 180
+
+                # Add the enemy to the list
+                self.enemy_list.append(enemy)
+            else:
+                enemies_to_spawn = 0
 
 
 def main():

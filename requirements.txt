@@ -1,1 +1,3 @@
-arcade
+arcade~=2.4.3
+
+Pillow~=8.1.0
