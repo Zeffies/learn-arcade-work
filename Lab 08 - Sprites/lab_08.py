@@ -57,6 +57,19 @@ class Coin(arcade.Sprite):
                 self.remove_from_sprite_lists()
 
 
+class ScoreGet(arcade.Sprite):
+    """This class handles the little texts that pop up when you get score from something."""
+
+    def __init__(self, e_texture, e_scale):
+        super(ScoreGet, self).__init__(e_texture, e_scale)
+        arcade.schedule(self.delete_self, 1)
+
+    # noinspection PyUnusedLocal
+    def delete_self(self, delta_time):
+        arcade.unschedule(self.delete_self)
+        self.remove_from_sprite_lists()
+
+
 class BombItem(arcade.Sprite):
     """
     This class handles drawing the bomb in the top left of the screen.
@@ -114,11 +127,14 @@ class Enemy(arcade.Sprite):
 
     def reset_pos(self):
         # Reset the coin to a random spot to the right of the screen and give it a random speed.
-        self.center_y = random.randrange(SCREEN_HEIGHT)
-        self.center_x = random.randrange(SCREEN_WIDTH + 20,
-                                         SCREEN_WIDTH + 500)
-        self.speed = random.randrange(1, 4)
-        self.bombed = False
+        if self.name == "blue":
+            self.center_y = random.randrange(SCREEN_HEIGHT)
+            self.center_x = random.randrange(SCREEN_WIDTH + 20,
+                                             SCREEN_WIDTH + 500)
+            self.speed = random.randrange(1, 4)
+            self.bombed = False
+        else:
+            self.remove_from_sprite_lists()
 
     def update(self):
         global score, enemy_count, coin_count, enemies_to_spawn
@@ -193,6 +209,7 @@ class MyGame(arcade.Window):
         self.bomb_attack_list = None
         self.explosion_list = None
         self.explosion_texture_list = []
+        self.score_list = None
 
         # Set up the player info
         self.player_sprite = None
@@ -218,11 +235,14 @@ class MyGame(arcade.Window):
         self.bombing = False
         self.bomb_color = [135, 206, 235, 255]
         self.how_many = 0
+        self.score_get = None
 
         # misc
         self.random_enemy = 0
         self.bombs_to_spawn = 0
         self.background = None
+        self.multiplier = 1
+        self.multiplied = False
 
         # Don't show the mouse cursor
         self.set_mouse_visible(False)
@@ -257,6 +277,12 @@ class MyGame(arcade.Window):
         # flaunch.wav (c) by Michel Baradari apollo-music.de
         self.bomb_launch_sound = arcade.load_sound("flaunch.wav")
 
+        self.enemy_damaged_sounds = []
+        self.enemy_destroyed_sounds = []
+        for x in range(5):
+            self.enemy_damaged_sounds.append(arcade.load_sound("impactPunch_medium_00" + str(x) + ".ogg"))
+            self.enemy_destroyed_sounds.append(arcade.load_sound("impactPlate_medium_00" + str(x) + ".ogg"))
+
         # bomb burst sounds from https://opengameart.org/content/100-plus-game-sound-effects-wavoggm4a
         self.bomb_burst_sounds = [arcade.load_sound("Explosion.wav"),
                                   arcade.load_sound("Explosion2.wav"),
@@ -285,6 +311,7 @@ class MyGame(arcade.Window):
         self.bomb_list = arcade.SpriteList()
         self.bomb_attack_list = arcade.SpriteList()
         self.explosion_list = arcade.SpriteList()
+        self.score_list = arcade.SpriteList()
 
         # Score
         score = 0
@@ -463,6 +490,10 @@ class MyGame(arcade.Window):
         if self.can_fire:
             self.can_fire = False
             arcade.schedule(self.fire_cooldown, COOLDOWN_BIG)
+        if self.charge > 0:
+            self.charge -= 1
+        else:
+            self.unshrink()
 
     # noinspection PyUnusedLocal
     def fire_cooldown(self, delta_time):
@@ -487,6 +518,12 @@ class MyGame(arcade.Window):
         arcade.unschedule(self.hurt_reset)
 
     # noinspection PyUnusedLocal
+    def multiplier_reset(self, delta_time):
+        self.multiplied = False
+        self.multiplier = 1
+        arcade.unschedule(self.multiplier_reset)
+
+    # noinspection PyUnusedLocal
     def spawn_explosion(self, delta_time):
         self.bombs_to_spawn -= 1
         if self.bombs_to_spawn > 0:
@@ -495,7 +532,7 @@ class MyGame(arcade.Window):
             explosion.center_y = random.randrange(0, SCREEN_HEIGHT)
             explosion.update()
             self.explosion_list.append(explosion)
-            arcade.play_sound(self.bomb_burst_sounds[random.randrange(8)], volume=.008)
+            arcade.play_sound(self.bomb_burst_sounds[random.randrange(8)], volume=.005)
         else:
             arcade.unschedule(self.spawn_explosion)
 
@@ -534,9 +571,13 @@ class MyGame(arcade.Window):
         self.player_bullet_list.draw()
         self.player_list.draw()
         self.enemy_list.draw()
+        self.score_list.draw()
         self.bomb_list.draw()
         self.bomb_attack_list.draw()
         self.explosion_list.draw()
+
+        if self.multiplied:
+            self.player_sprite.draw_hit_box(arcade.color.YELLOW, 1.5)
 
         # Handle shrink charge bar
         if self.charge < 20:
@@ -670,7 +711,7 @@ class MyGame(arcade.Window):
                 self.bomb_white.scale = .15
                 self.bomb_attack_list.append(self.bomb_white)
                 self.bomb_attack_list.append(self.bomb)
-                arcade.play_sound(self.bomb_launch_sound, .05)
+                arcade.play_sound(self.bomb_launch_sound, .02)
                 self.bombs_to_spawn = random.randrange(15, 20)
                 arcade.schedule(self.spawn_explosion, .07)
                 for enemy in self.enemy_list:
@@ -679,6 +720,10 @@ class MyGame(arcade.Window):
                         enemy.scale = .5 + (enemy.health * .25)
                         if enemy.health <= 0:
                             self.spawn_coin(enemy.name, enemy.center_x, enemy.center_y)
+                            self.score_get = ScoreGet("enemyScore" + enemy.name + ".png", .8)
+                            self.score_get.center_x = enemy.center_x
+                            self.score_get.center_y = enemy.center_y + 20
+                            self.score_list.append(self.score_get)
                             if enemy.name == "blue":
                                 if random.randrange(0, 2) < 1 or enemy_count < coin_count:
                                     enemy.reset_pos()
@@ -730,6 +775,7 @@ class MyGame(arcade.Window):
             self.player_list.update()
             self.player_bullet_list.update()
             self.explosion_list.update()
+            self.score_list.update()
 
         # Generate a list of all sprites that collided with the player.
         hit_list = arcade.check_for_collision_with_list(self.player_sprite,
@@ -762,7 +808,12 @@ class MyGame(arcade.Window):
                         kill.health -= 3
                     kill.scale = .5 + (kill.health * .25)
                 if kill.health <= 0:
+                    arcade.play_sound(self.enemy_damaged_sounds[random.randrange(5)], .01)
                     self.spawn_coin(kill.name, kill.center_x, kill.center_y)
+                    self.score_get = ScoreGet("enemyScore" + kill.name + ".png", .8)
+                    self.score_get.center_x = kill.center_x
+                    self.score_get.center_y = kill.center_y + 20
+                    self.score_list.append(self.score_get)
                     if kill.name == "blue":
                         kill.reset_pos()
                     else:
@@ -779,6 +830,12 @@ class MyGame(arcade.Window):
                         score += 4
                     elif kill.name == "gold":
                         score += 15
+                        self.multiplier = 2
+                        if self.multiplied:
+                            arcade.unschedule(self.multiplier_reset)
+                        else:
+                            self.multiplied = True
+                        arcade.schedule(self.multiplier_reset, 5)
                     if self.charge < 40:
                         self.charge += 1
                         if self.rmb_down and not self.shrunk:
@@ -786,17 +843,26 @@ class MyGame(arcade.Window):
                         if self.charge == 40 and self.firing_big:
                             arcade.unschedule(self.fire_big)
                             arcade.schedule(self.fire_big, COOLDOWN_BIG_OVERCHARGE)
+                else:
+                    arcade.play_sound(self.enemy_destroyed_sounds[random.randrange(5)], .01)
 
         # Loop through each colliding sprite, remove it, and add to the score.
         for coin in hit_list:
+            if not self.multiplied:
+                self.score_get = ScoreGet("coinScore" + coin.name + ".png", .7)
+            else:
+                self.score_get = ScoreGet("coinScore" + coin.name + "mult.png", .7)
+            self.score_get.center_x = coin.center_x
+            self.score_get.center_y = coin.center_y
+            self.score_list.append(self.score_get)
             if coin.name == "gold":
                 coin.reset_pos()
             else:
                 coin.remove_from_sprite_lists()
-            score += coin.value
+            score += coin.value * self.multiplier
             self.difficulty_check += coin.value
             if self.bomb_charge < self.bomb_charge_max:
-                self.bomb_charge += coin.value
+                self.bomb_charge += coin.value * self.multiplier
                 # print(self.bomb_charge)
                 # print(self.bomb_charge_max)
                 if self.bomb_charge >= self.bomb_charge_max:
@@ -832,7 +898,7 @@ class MyGame(arcade.Window):
                 self.enemy_list.append(enemy)
 
             if coin == hit_list[0]:
-                if coin.name == "gold":
+                if coin.name == "gold" or coin.name == "blue":
                     arcade.play_sound(self.coin_sounds[random.randrange(10)], volume=.02)
                 else:
                     arcade.play_sound(self.better_coin_sounds[random.randrange(5)], volume=.03)
@@ -876,6 +942,7 @@ class MyGame(arcade.Window):
             self.bomb.scale += .05
             self.bomb_white.scale += .057
             if self.bomb.scale >= 2:
+                self.bomb.alpha -= 10
                 self.bomb_white.alpha -= 11
             if self.bomb.scale >= 3:
                 self.bomb.remove_from_sprite_lists()
