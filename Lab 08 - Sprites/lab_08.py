@@ -11,7 +11,7 @@ SCREEN_WIDTH = 1280
 SCREEN_HEIGHT = 720
 SHRINK_CHARGE_UP_SPEED = 2
 SHRINK_CHARGE_DOWN_SPEED = .25
-HEALTH_CHARGE_SPEED = 1.5
+HEALTH_CHARGE_SPEED = 5
 COOLDOWN_BIG = .3
 COOLDOWN_BIG_OVERCHARGE = .2
 COOLDOWN_SMALL = .1
@@ -175,6 +175,10 @@ class Player(arcade.Sprite):
         self.player_textures.append(texture)
         texture = arcade.load_texture("P-green-b3_hurt.png")
         self.player_textures.append(texture)
+        texture = arcade.load_texture("P-green-b3_gold.png")
+        self.player_textures.append(texture)
+        texture = arcade.load_texture("P-green-b3_hurt_gold.png")
+        self.player_textures.append(texture)
 
         self.texture = self.player_textures[0]
 
@@ -215,7 +219,7 @@ class MyGame(arcade.Window):
         self.player_sprite = None
         self.charge = 20
         self.bomb_charge = 0
-        self.bomb_charge_max = 250
+        self.bomb_charge_max = 500
         self.shrink_charging = False
         self.shrunk = False
         self.health = 20
@@ -324,7 +328,7 @@ class MyGame(arcade.Window):
         self.player_list.append(self.player_sprite)
         self.charge = 20
         self.bomb_charge = 0
-        self.bomb_charge_max = 250
+        self.bomb_charge_max = 500
         self.shrunk = False
         self.shrink_charging = False
         self.health = 20
@@ -514,11 +518,18 @@ class MyGame(arcade.Window):
     def hurt_reset(self, delta_time):
         # Handles changing the character sprite back to normal after hurt time ends
         if self.alive:
-            self.player_list[0].texture = self.player_list[0].player_textures[0]
+            if not self.multiplied:
+                self.player_list[0].texture = self.player_list[0].player_textures[0]
+            else:
+                self.player_list[0].texture = self.player_list[0].player_textures[2]
         arcade.unschedule(self.hurt_reset)
 
     # noinspection PyUnusedLocal
     def multiplier_reset(self, delta_time):
+        if self.player_list[0].texture == self.player_list[0].player_textures[3]:
+            self.player_list[0].texture = self.player_list[0].player_textures[1]
+        else:
+            self.player_list[0].texture = self.player_list[0].player_textures[0]
         self.multiplied = False
         self.multiplier = 1
         arcade.unschedule(self.multiplier_reset)
@@ -575,9 +586,6 @@ class MyGame(arcade.Window):
         self.bomb_list.draw()
         self.bomb_attack_list.draw()
         self.explosion_list.draw()
-
-        if self.multiplied:
-            self.player_sprite.draw_hit_box(arcade.color.YELLOW, 1.5)
 
         # Handle shrink charge bar
         if self.charge < 20:
@@ -835,6 +843,10 @@ class MyGame(arcade.Window):
                             arcade.unschedule(self.multiplier_reset)
                         else:
                             self.multiplied = True
+                        if self.player_list[0].texture == self.player_list[0].player_textures[1]:
+                            self.player_list[0].texture = self.player_list[0].player_textures[3]
+                        else:
+                            self.player_list[0].texture = self.player_list[0].player_textures[2]
                         arcade.schedule(self.multiplier_reset, 5)
                     if self.charge < 40:
                         self.charge += 1
@@ -858,6 +870,11 @@ class MyGame(arcade.Window):
             if coin.name == "gold":
                 coin.reset_pos()
             else:
+                if coin.name == "red":
+                    if 20 > self.health >= 17:
+                        self.health = 20
+                    elif 0 < self.health < 17:
+                        self.health += 3
                 coin.remove_from_sprite_lists()
             score += coin.value * self.multiplier
             self.difficulty_check += coin.value
@@ -932,10 +949,14 @@ class MyGame(arcade.Window):
                 self.healing = True
             if damage == damage_list[0]:
                 arcade.play_sound(self.hurt, volume=.02)
-                if self.player_list[0].texture == self.player_list[0].player_textures[1]:
+                if self.player_list[0].texture == self.player_list[0].player_textures[1] or \
+                        self.player_list[0].texture == self.player_list[0].player_textures[3]:
                     arcade.unschedule(self.hurt_reset)
                 else:
-                    self.player_list[0].texture = self.player_list[0].player_textures[1]
+                    if not self.multiplied:
+                        self.player_list[0].texture = self.player_list[0].player_textures[1]
+                    else:
+                        self.player_list[0].texture = self.player_list[0].player_textures[3]
                 arcade.schedule(self.hurt_reset, .25)
 
         if self.bombing:
